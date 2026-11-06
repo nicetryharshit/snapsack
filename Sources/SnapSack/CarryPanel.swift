@@ -119,7 +119,7 @@ final class CarryPanel: NSPanel {
     /// everywhere, including the very top of the screen.
     override func constrainFrameRect(_ frameRect: NSRect, to screen: NSScreen?) -> NSRect { frameRect }
 
-    func render(pivot: CGPoint, anchor: CGPoint, angle: CGFloat, scale: CGFloat, alpha: CGFloat) {
+    func render(pivot: CGPoint, anchor: CGPoint, angle: CGFloat, scale: CGFloat, alpha: CGFloat, warp: CATransform3D) {
         setFrameOrigin(NSPoint(x: pivot.x - reach, y: pivot.y - reach))
         alphaValue = alpha
 
@@ -130,6 +130,7 @@ final class CarryPanel: NSPanel {
         var transform = CATransform3DMakeRotation(angle, 0, 0, 1)
         transform = CATransform3DScale(transform, scale, scale, 1)
         cardLayer.transform = transform
+        contentLayer.transform = warp              // the corner pull, in card space (identity almost always)
         CATransaction.commit()
     }
 }

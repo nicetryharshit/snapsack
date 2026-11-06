@@ -172,6 +172,8 @@ final class Hand: NSObject {
         }
         let card = cards.remove(at: index)
         card.closeShown = false
+        card.pull = .zero
+        card.warp = CATransform3DIdentity
         let png = card.png
         leave(card, .flying(from: card.pos, to: landing), onLanded: { onLanded(png) })
         mode = .carrying
@@ -184,6 +186,8 @@ final class Hand: NSObject {
     private func removeFanned(at index: Int) {
         let card = cards.remove(at: index)
         card.closeShown = false
+        card.pull = .zero
+        card.warp = CATransform3DIdentity
         leave(card, .vanishing)
         hovered = nil
         if cards.count < 2 {
@@ -229,6 +233,8 @@ final class Hand: NSObject {
         for card in cards {
             card.lift = 0
             card.closeShown = false
+            card.pull = .zero
+            card.warp = CATransform3DIdentity
             card.reanchor(to: anchor)
         }
     }
@@ -356,6 +362,13 @@ final class Hand: NSObject {
             spring(&card.scale, &card.scaleVel,
                    to: Tune.fanScale * (isHovered ? Tune.fanHoverScale : 1),
                    k: Tune.scaleStiffness, c: Tune.scaleDamping, dt: dt)
+
+            // The pull: only the hovered card's bottom corner, nearest the click, is drawn toward it.
+            let target = isHovered ? pullTarget(for: card) : .zero
+            card.pull.x += (target.x - card.pull.x) * ease
+            card.pull.y += (target.y - card.pull.y) * ease
+            card.warp = Warp.matrix(width: card.size.width, height: card.size.height,
+                                    corner: pullSide(for: card), delta: card.pull)
         }
     }
 
@@ -498,6 +511,34 @@ final class Hand: NSObject {
         let y = -dx * sinA + dy * cosA
         return abs(x) <= card.size.width * card.scale / 2 + margin
             && abs(y) <= card.size.height * card.scale / 2 + margin
+    }
+
+    /// Which bottom corner is pulled: the one on the same side of the card as the click.
+    private func pullSide(for card: Card) -> CGFloat {
+        fanOrigin.x >= card.center.x ? 1 : -1
+    }
+
+    /// The pull a card wants while hovered, as an offset of its bottom corner in card units. It falls off with the
+    /// square of the distance from that corner to the click, so it's barely there from afar and strongest up close.
+    private func pullTarget(for card: Card) -> CGPoint {
+        let c = card.center
+        let cosA = cos(card.angle)
+        let sinA = sin(card.angle)
+        let lx = pullSide(for: card) * card.size.width / 2 * card.scale
+        let ly = -card.size.height / 2 * card.scale
+        let corner = CGPoint(x: c.x + lx * cosA - ly * sinA, y: c.y + lx * sinA + ly * cosA)
+
+        let dx = fanOrigin.x - corner.x
+        let dy = fanOrigin.y - corner.y
+        let dist = hypot(dx, dy)
+        guard dist > 0.5 else { return .zero }
+        let closeness = max(0, 1 - dist / Tune.pullRange)
+        let strength = closeness * closeness * Tune.pullStrength
+        // Turn the direction into the card's own axes, so the warp pulls toward the click whatever the tilt.
+        return CGPoint(
+            x: (dx * cosA + dy * sinA) / dist * strength,
+            y: (-dx * sinA + dy * cosA) / dist * strength
+        )
     }
 
     // MARK: - Small maths
