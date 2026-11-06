@@ -32,7 +32,8 @@ enum Tune {
     static let fanHoverScale: CGFloat = 1.07
     static let fanCurvature: CGFloat = 0.0005                  // how much the ends of the fan droop
     static let closeBadgeSize: CGFloat = 12                    // the × badge, in card units
-    static let closeHitRadius: CGFloat = 14                    // clicks this close to the badge's centre count, in points
+    static let closeHitRadius: CGFloat = 16                    // clicks this close to the badge's centre count, in points
+    static let fanHoverMargin: CGFloat = 26                    // the hovered card stays active this far outside its edge
 
     // Leaving
     static let flightDuration: CFTimeInterval = 0.23

@@ -156,7 +156,13 @@ final class Hand: NSObject {
     @discardableResult
     func fanClick(at mouse: CGPoint, landing: CGPoint, onLanded: @escaping (Data) -> Void) -> FanClick {
         guard mode == .fanned else { return .missed }
-        guard let index = hitTest(mouse) else {
+        // Inside a card counts as a pick. Outside it only counts when it's the × of the active card.
+        let index: Int
+        if let inside = hitTest(mouse) {
+            index = inside
+        } else if let near = hitTestSticky(mouse), isOnClose(near, mouse) {
+            index = near
+        } else {
             closeFan()
             return .missed
         }
@@ -334,7 +340,7 @@ final class Hand: NSObject {
 
     /// The fan: every card eases to its slot and holds; the one under the pointer lifts.
     private func stepFanned(dt: CGFloat, now: CFTimeInterval, mouse: CGPoint) {
-        hovered = hitTest(mouse)
+        hovered = hitTestSticky(mouse)
         let ease = 1 - exp(-dt * 18)
         for (index, card) in cards.enumerated() where index < slots.count {
             card.alpha = 1
@@ -465,20 +471,33 @@ final class Hand: NSObject {
 
     /// The topmost card under `point`, accounting for each card's tilt and size.
     private func hitTest(_ point: CGPoint) -> Int? {
-        for index in cards.indices.reversed() {
-            let card = cards[index]
-            let c = card.center
-            let dx = point.x - c.x
-            let dy = point.y - c.y
-            let cosA = cos(card.angle)
-            let sinA = sin(card.angle)
-            let x = dx * cosA + dy * sinA
-            let y = -dx * sinA + dy * cosA
-            if abs(x) <= card.size.width * card.scale / 2 && abs(y) <= card.size.height * card.scale / 2 {
-                return index
-            }
+        for index in cards.indices.reversed() where contains(index, point, margin: 0) {
+            return index
         }
         return nil
+    }
+
+    /// The card under `point`, or else the card that was already hovered if the pointer is just outside it. This
+    /// lets the pointer travel off the edge toward the × (which sits in the corner) without losing the card.
+    private func hitTestSticky(_ point: CGPoint) -> Int? {
+        if let index = hitTest(point) { return index }
+        if let hovered, hovered < cards.count, contains(hovered, point, margin: Tune.fanHoverMargin) {
+            return hovered
+        }
+        return nil
+    }
+
+    private func contains(_ index: Int, _ point: CGPoint, margin: CGFloat) -> Bool {
+        let card = cards[index]
+        let c = card.center
+        let dx = point.x - c.x
+        let dy = point.y - c.y
+        let cosA = cos(card.angle)
+        let sinA = sin(card.angle)
+        let x = dx * cosA + dy * sinA
+        let y = -dx * sinA + dy * cosA
+        return abs(x) <= card.size.width * card.scale / 2 + margin
+            && abs(y) <= card.size.height * card.scale / 2 + margin
     }
 
     // MARK: - Small maths

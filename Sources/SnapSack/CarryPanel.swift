@@ -71,13 +71,21 @@ final class CarryPanel: NSPanel {
         let badge = Tune.closeBadgeSize
         closeLayer.bounds = CGRect(x: 0, y: 0, width: badge, height: badge)
         closeLayer.position = CGPoint(x: size.width - 1, y: size.height - 1)
-        closeLayer.path = CGPath(ellipseIn: closeLayer.bounds, transform: nil)
-        closeLayer.fillColor = NSColor(calibratedWhite: 0.13, alpha: 1).cgColor
+        // A red disc with a darker rim and a white ×, like a delete badge. Sizes are in card units, so they
+        // scale with the card in the fan.
+        closeLayer.path = CGPath(ellipseIn: closeLayer.bounds.insetBy(dx: 0.4, dy: 0.4), transform: nil)
+        closeLayer.fillColor = NSColor(calibratedRed: 0.93, green: 0.27, blue: 0.25, alpha: 1).cgColor
+        closeLayer.strokeColor = NSColor(calibratedRed: 0.62, green: 0.12, blue: 0.11, alpha: 0.6).cgColor
+        closeLayer.lineWidth = 0.6
+        closeLayer.shadowColor = NSColor.black.cgColor
+        closeLayer.shadowOpacity = 0.3
+        closeLayer.shadowRadius = 1.2
+        closeLayer.shadowOffset = CGSize(width: 0, height: -0.6)
         closeLayer.opacity = 0
 
         let cross = CAShapeLayer()
         cross.frame = closeLayer.bounds
-        let r = badge * 0.27
+        let r = badge * 0.2
         let c = CGPoint(x: badge / 2, y: badge / 2)
         let strokes = CGMutablePath()
         strokes.move(to: CGPoint(x: c.x - r, y: c.y - r))
@@ -87,7 +95,8 @@ final class CarryPanel: NSPanel {
         cross.path = strokes
         cross.strokeColor = NSColor.white.cgColor
         cross.fillColor = nil
-        cross.lineWidth = 1.5
+        cross.lineWidth = 1.1
+        cross.lineCap = .round
         cross.lineCap = .round
         closeLayer.addSublayer(cross)
         cardLayer.addSublayer(closeLayer)
