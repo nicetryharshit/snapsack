@@ -14,12 +14,15 @@ final class Carrier {
     private let dropper = Dropper()
     private var isCapturing = false
     private var fanLanding = CGPoint.zero      // where the double-click happened: where the pick will land
+    private var pendingDrop: FinderDrop.Target = .paste   // decided on the double-click, used when the card lands
+    private var fanDrop: FinderDrop.Target = .paste       // the same, kept while the fan is open
 
     init() {
         hand.onShake = { [weak self] in self?.tossAll() }
         tap.onDoubleClick = { [weak self] in self?.doubleClicked() }
         tap.onFanClick = { [weak self] in self?.fanClicked() }
         tap.onEscape = { [weak self] in self?.escaped() }
+        tap.classify = { [weak self] point in self?.classifyDoubleClick(at: point) ?? true }
     }
 
     // MARK: - Capturing
@@ -69,13 +72,15 @@ final class Carrier {
         case 0:
             return
         case 1:
-            // One card: it floats to where you clicked, and the real paste fires when it lands.
+            // One card: it floats to where you clicked, and the drop fires when it lands.
             let dropper = self.dropper
-            hand.flyNewest(to: landing) { png in dropper.paste(png: png) }
+            let target = pendingDrop
+            hand.flyNewest(to: landing) { png in dropper.deliver(png: png, to: target) }
             tap.stopAfterPendingMouseUp()
         default:
             // Several: spread them out, hold them, and let the next click choose.
             fanLanding = landing
+            fanDrop = pendingDrop
             hand.openFan(at: landing)
             tap.fanMode = hand.isFanned
         }
@@ -87,11 +92,22 @@ final class Carrier {
             return
         }
         let dropper = self.dropper
+        let target = fanDrop
+        FinderDrop.log("fan click cards=\(hand.count)")
         hand.fanClick(at: NSEvent.mouseLocation, landing: fanLanding) { png in
-            dropper.paste(png: png)
+            dropper.deliver(png: png, to: target)
         }
         tap.fanMode = hand.isFanned
         if hand.isEmpty { tap.stopAfterPendingMouseUp() }
+    }
+
+    /// Called on the double-click, before the tap decides whether to swallow it. Returns false when the click is on
+    /// something Finder should handle itself, such as a folder icon.
+    private func classifyDoubleClick(at point: CGPoint) -> Bool {
+        // Nothing in hand means nothing to drop: never swallow a double-click for that.
+        guard !hand.isEmpty else { return false }
+        pendingDrop = FinderDrop.target(at: point)
+        return pendingDrop != .leaveAlone
     }
 
     private func escaped() {

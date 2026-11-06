@@ -31,7 +31,7 @@ struct Dropper {
     func paste(png: Data) {
         let pasteboard = NSPasteboard.general
         let snapshot = Self.snapshot(of: pasteboard)
-        let fileURL = Self.write(png)
+        let fileURL = Self.write(png, in: Self.directory)
 
         pasteboard.clearContents()
         let item = NSPasteboardItem()
@@ -54,6 +54,24 @@ struct Dropper {
         }
     }
 
+    /// Saves the screenshot as a file in the folder under a double-click on Finder's background. The clipboard
+    /// is never touched, so the screenshot doesn't stay on it.
+    func deliver(png: Data, to target: FinderDrop.Target) {
+        FinderDrop.log("deliver target=\(target) bytes=\(png.count) hash=\(png.hashValue)")
+        switch target {
+        case .folder(let folder):
+            _ = Self.write(png, in: folder)
+        case .frontFinderWindow:
+            if let folder = FinderDrop.frontWindowFolder() {
+                _ = Self.write(png, in: folder)
+            } else {
+                paste(png: png)
+            }
+        case .paste, .leaveAlone:
+            paste(png: png)
+        }
+    }
+
     private static func snapshot(of pasteboard: NSPasteboard) -> [NSPasteboardItem] {
         (pasteboard.pasteboardItems ?? []).map { original in
             let copy = NSPasteboardItem()
@@ -64,14 +82,20 @@ struct Dropper {
         }
     }
 
-    private static func write(_ png: Data) -> URL? {
+    private static func write(_ png: Data, in folder: URL) -> URL? {
         let fm = FileManager.default
-        try? fm.createDirectory(at: directory, withIntermediateDirectories: true)
+        try? fm.createDirectory(at: folder, withIntermediateDirectories: true)
 
         let formatter = DateFormatter()
         formatter.locale = Locale(identifier: "en_US_POSIX")
         formatter.dateFormat = "yyyy-MM-dd 'at' HH.mm.ss"
-        let url = directory.appendingPathComponent("Screenshot \(formatter.string(from: Date())).png")
+        let base = "Screenshot \(formatter.string(from: Date()))"
+        var url = folder.appendingPathComponent("\(base).png")
+        var n = 2
+        while fm.fileExists(atPath: url.path) {          // two shots in the same second
+            url = folder.appendingPathComponent("\(base) \(n).png")
+            n += 1
+        }
         do {
             try png.write(to: url, options: .atomic)
             return url

@@ -58,6 +58,7 @@ final class Card {
     var scaleVel: CGFloat = 0
     var alpha: CGFloat = 0
     var lift: CGFloat = 0       // hover lift while fanned
+    var landedOnce = false      // set when this card's drop has fired, so it never fires twice
 
     /// Whether the × is showing: only the active card in the fan.
     var closeShown = false {

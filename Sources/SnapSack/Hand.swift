@@ -173,7 +173,16 @@ final class Hand: NSObject {
         let card = cards.remove(at: index)
         card.closeShown = false
         let png = card.png
-        leave(card, .flying(from: card.pos, to: landing), onLanded: { onLanded(png) })
+        // One delivery per pick: a repeated landing is logged and ignored, so the screenshot is never saved twice.
+        var delivered = false
+        leave(card, .flying(from: card.pos, to: landing), onLanded: {
+            if delivered {
+                FinderDrop.log("repeated landing ignored")
+                return
+            }
+            delivered = true
+            onLanded(png)
+        })
         mode = .carrying
         hovered = nil
         returnToHand()
@@ -239,12 +248,24 @@ final class Hand: NSObject {
         velocity: CGPoint = .zero,
         onLanded: (() -> Void)? = nil
     ) {
+        // A card's drop fires once, however many times its landing reports in. Repeats are logged.
+        var once: (() -> Void)?
+        if let onLanded {
+            once = { [card] in
+                if card.landedOnce {
+                    FinderDrop.log("repeated landing ignored")
+                    return
+                }
+                card.landedOnce = true
+                onLanded()
+            }
+        }
         leaving.append(Leaving(
             card: card,
             exit: exit,
             start: CACurrentMediaTime(),
             velocity: velocity,
-            onLanded: onLanded
+            onLanded: once
         ))
         startLinkIfNeeded()
     }

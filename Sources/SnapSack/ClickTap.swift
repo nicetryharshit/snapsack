@@ -5,8 +5,8 @@ import Foundation
 ///
 /// - First click of a double-click passes straight through, so the app under the cursor gets focus and the caret
 ///   lands where you clicked. The second click is swallowed and becomes "drop".
-///   No checks happen inside this callback: the system disables a tap that answers slowly, and that is what made
-///   double-clicks miss.
+///   The only check is on a double-click, to see whether it's on Finder's background (see FinderDrop). It has a short
+///   Accessibility timeout, because the system disables a tap that answers slowly.
 /// - While the fan is open (`fanMode`) every click is swallowed and reported, so nothing underneath is triggered.
 /// - Esc is swallowed and becomes "put it away".
 /// - `isPaused` makes the tap transparent (used while the system screenshot crosshair is up, so its Esc still works).
@@ -18,6 +18,8 @@ final class ClickTap: @unchecked Sendable {
     var onEscape: (@MainActor () -> Void)?
     var isPaused = false
     var fanMode = false
+    /// Asked on a double-click: false means the click isn't ours, so it passes through to whatever is under it.
+    var classify: (@MainActor (CGPoint) -> Bool)?
 
     private var port: CFMachPort?
     private var source: CFRunLoopSource?
@@ -107,6 +109,9 @@ final class ClickTap: @unchecked Sendable {
                 return nil
             }
             if event.getIntegerValueField(.mouseEventClickState) >= 2 {
+                if let classify, !MainActor.assumeIsolated({ classify(event.location) }) {
+                    return Unmanaged.passUnretained(event)   // a folder icon, say: Finder keeps its double-click
+                }
                 swallowNextMouseUp = true
                 fire(onDoubleClick)
                 return nil
