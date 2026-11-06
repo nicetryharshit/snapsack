@@ -34,11 +34,12 @@ enum Tune {
     static let closeBadgeSize: CGFloat = 12                    // the × badge, in card units
     static let closeHitRadius: CGFloat = 16                    // clicks this close to the badge's centre count, in points
     static let fanHoverMargin: CGFloat = 26                    // the hovered card stays active this far outside its edge
-    static let pullStrength: CGFloat = 4                       // the bottom corner nearest the click moves this far, in card units, at most
-    static let pullRange: CGFloat = 260                       // beyond this distance (points) the click pulls nothing
+    static let fanSnap: CGFloat = 46                          // how fast the hover lift responds (per second): snappy
+    static let fanScaleStiffness: CGFloat = 900               // a quicker, nearly critically damped hover pop
+    static let fanScaleDamping: CGFloat = 52
 
     // Leaving
-    static let flightDuration: CFTimeInterval = 0.23
+    static let flightDuration: CFTimeInterval = 0.18
 }
 
 /// One screenshot in your hand: its window plus the physics state that drives it.
@@ -103,11 +104,7 @@ final class Card {
         )
     }
 
-    /// The corner pull while fanned: how far the bottom corner is drawn toward the click, and the matrix that does it.
-    var pull: CGPoint = .zero
-    var warp = CATransform3DIdentity
-
     func render(alphaMultiplier: CGFloat) {
-        panel.render(pivot: pos, anchor: anchor, angle: angle, scale: scale, alpha: alpha * alphaMultiplier, warp: warp)
+        panel.render(pivot: pos, anchor: anchor, angle: angle, scale: scale, alpha: alpha * alphaMultiplier)
     }
 }

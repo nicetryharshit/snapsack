@@ -107,7 +107,7 @@ final class CarryPanel: NSPanel {
     /// Shows or hides the × with a short fade.
     func setCloseShown(_ shown: Bool) {
         CATransaction.begin()
-        CATransaction.setAnimationDuration(0.14)
+        CATransaction.setAnimationDuration(0.08)
         closeLayer.opacity = shown ? 1 : 0
         CATransaction.commit()
     }
@@ -119,7 +119,7 @@ final class CarryPanel: NSPanel {
     /// everywhere, including the very top of the screen.
     override func constrainFrameRect(_ frameRect: NSRect, to screen: NSScreen?) -> NSRect { frameRect }
 
-    func render(pivot: CGPoint, anchor: CGPoint, angle: CGFloat, scale: CGFloat, alpha: CGFloat, warp: CATransform3D) {
+    func render(pivot: CGPoint, anchor: CGPoint, angle: CGFloat, scale: CGFloat, alpha: CGFloat) {
         setFrameOrigin(NSPoint(x: pivot.x - reach, y: pivot.y - reach))
         alphaValue = alpha
 
@@ -130,7 +130,6 @@ final class CarryPanel: NSPanel {
         var transform = CATransform3DMakeRotation(angle, 0, 0, 1)
         transform = CATransform3DScale(transform, scale, scale, 1)
         cardLayer.transform = transform
-        contentLayer.transform = warp              // the corner pull, in card space (identity almost always)
         CATransaction.commit()
     }
 }

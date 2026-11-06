@@ -172,8 +172,6 @@ final class Hand: NSObject {
         }
         let card = cards.remove(at: index)
         card.closeShown = false
-        card.pull = .zero
-        card.warp = CATransform3DIdentity
         let png = card.png
         leave(card, .flying(from: card.pos, to: landing), onLanded: { onLanded(png) })
         mode = .carrying
@@ -186,8 +184,6 @@ final class Hand: NSObject {
     private func removeFanned(at index: Int) {
         let card = cards.remove(at: index)
         card.closeShown = false
-        card.pull = .zero
-        card.warp = CATransform3DIdentity
         leave(card, .vanishing)
         hovered = nil
         if cards.count < 2 {
@@ -233,8 +229,6 @@ final class Hand: NSObject {
         for card in cards {
             card.lift = 0
             card.closeShown = false
-            card.pull = .zero
-            card.warp = CATransform3DIdentity
             card.reanchor(to: anchor)
         }
     }
@@ -338,7 +332,7 @@ final class Hand: NSObject {
                    k: Tune.angleStiffness, c: Tune.angleDamping, dt: dt)
             spring(&card.scale, &card.scaleVel, to: 1,
                    k: Tune.scaleStiffness, c: Tune.scaleDamping, dt: dt)
-            card.alpha = min(1, CGFloat((now - card.born) / 0.10))
+            card.alpha = min(1, CGFloat((now - card.born) / 0.06))
         }
 
         if now > armShakeAt, shake.feed(mouse, at: now) { onShake?() }
@@ -347,29 +341,22 @@ final class Hand: NSObject {
     /// The fan: every card eases to its slot and holds; the one under the pointer lifts.
     private func stepFanned(dt: CGFloat, now: CFTimeInterval, mouse: CGPoint) {
         hovered = hitTestSticky(mouse)
-        let ease = 1 - exp(-dt * 18)
+        let ease = 1 - exp(-dt * Tune.fanSnap)     // hover lift: snap
+        let slide = 1 - exp(-dt * 30)               // moving into the fan slots
         for (index, card) in cards.enumerated() where index < slots.count {
             card.alpha = 1
-            guard now - fanStart >= Double(index) * 0.018 else { continue }   // a slight cascade
+            guard now - fanStart >= Double(index) * 0.012 else { continue }   // a slight cascade
             let slot = slots[index]
             let isHovered = hovered == index
             card.closeShown = isHovered
             card.lift += ((isHovered ? 14 : 0) - card.lift) * ease
-            card.pos.x += (slot.center.x - card.pos.x) * ease
-            card.pos.y += (slot.center.y + card.lift - card.pos.y) * ease
+            card.pos.x += (slot.center.x - card.pos.x) * slide
+            card.pos.y += (slot.center.y + card.lift - card.pos.y) * slide
             spring(&card.angle, &card.angleVel, to: slot.angle,
                    k: Tune.angleStiffness, c: Tune.angleDamping, dt: dt)
             spring(&card.scale, &card.scaleVel,
                    to: Tune.fanScale * (isHovered ? Tune.fanHoverScale : 1),
-                   k: Tune.scaleStiffness, c: Tune.scaleDamping, dt: dt)
-
-            // The pull: only the hovered card's bottom corner, nearest the click, is drawn toward it.
-            let target = isHovered ? pullTarget(for: card) : .zero
-            card.pull.x += (target.x - card.pull.x) * ease
-            card.pull.y += (target.y - card.pull.y) * ease
-            card.warp = Warp.matrix(width: card.size.width, height: card.size.height,
-                                    corner: pullSide(for: card), delta: card.pull)
-        }
+                   k: Tune.fanScaleStiffness, c: Tune.fanScaleDamping, dt: dt)        }
     }
 
     private func stepLeaving(dt: CGFloat, now: CFTimeInterval) {
@@ -395,7 +382,7 @@ final class Hand: NSObject {
                 }
 
             case .drifting:
-                let p = min(1, t / 0.24)
+                let p = min(1, t / 0.14)
                 let eased = 1 - pow(1 - p, 3)
                 let drag = exp(-dt * 9)
                 item.velocity.x *= drag
@@ -408,7 +395,7 @@ final class Hand: NSObject {
                 if p >= 1 { finished.append(item) }
 
             case .vanishing:
-                let p = min(1, t / 0.16)
+                let p = min(1, t / 0.09)
                 let eased = 1 - pow(1 - p, 3)
                 spring(&card.angle, &card.angleVel, to: 0, k: Tune.angleStiffness, c: Tune.angleDamping, dt: dt)
                 card.scale = item.startScale * (1 - 0.10 * eased)
@@ -511,34 +498,6 @@ final class Hand: NSObject {
         let y = -dx * sinA + dy * cosA
         return abs(x) <= card.size.width * card.scale / 2 + margin
             && abs(y) <= card.size.height * card.scale / 2 + margin
-    }
-
-    /// Which bottom corner is pulled: the one on the same side of the card as the click.
-    private func pullSide(for card: Card) -> CGFloat {
-        fanOrigin.x >= card.center.x ? 1 : -1
-    }
-
-    /// The pull a card wants while hovered, as an offset of its bottom corner in card units. It falls off with the
-    /// square of the distance from that corner to the click, so it's barely there from afar and strongest up close.
-    private func pullTarget(for card: Card) -> CGPoint {
-        let c = card.center
-        let cosA = cos(card.angle)
-        let sinA = sin(card.angle)
-        let lx = pullSide(for: card) * card.size.width / 2 * card.scale
-        let ly = -card.size.height / 2 * card.scale
-        let corner = CGPoint(x: c.x + lx * cosA - ly * sinA, y: c.y + lx * sinA + ly * cosA)
-
-        let dx = fanOrigin.x - corner.x
-        let dy = fanOrigin.y - corner.y
-        let dist = hypot(dx, dy)
-        guard dist > 0.5 else { return .zero }
-        let closeness = max(0, 1 - dist / Tune.pullRange)
-        let strength = closeness * closeness * Tune.pullStrength
-        // Turn the direction into the card's own axes, so the warp pulls toward the click whatever the tilt.
-        return CGPoint(
-            x: (dx * cosA + dy * sinA) / dist * strength,
-            y: (-dx * sinA + dy * cosA) / dist * strength
-        )
     }
 
     // MARK: - Small maths
