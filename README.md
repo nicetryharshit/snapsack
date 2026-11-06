@@ -1,6 +1,6 @@
 # SnapSack
 
-Carry a screenshot on your cursor, system-wide on macOS. Inspired by
+Carry screenshots on your cursor, system-wide on macOS. Inspired by
 [@rrrima_'s thread](https://x.com/rrrima_/status/2118562181713195251): the cursor is the one thing that's in
 every app, so it's the right place to keep things that don't belong to any app yet.
 
