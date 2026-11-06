@@ -4,6 +4,10 @@ Carry a screenshot on your cursor, system-wide on macOS. Inspired by
 [@rrrima_'s thread](https://x.com/rrrima_/status/2118562181713195251): the cursor is the one thing that's in
 every app, so it's the right place to keep things that don't belong to any app yet.
 
+<video src="docs/demo.mp4" controls muted width="100%"></video>
+
+[Watch the demo](docs/demo.mp4)
+
 | | |
 |---|---|
 | **⌃⌥S** (default) | Drag over anything on screen (Space switches to window mode). The screenshot joins your hand and rides your cursor. Press it again for more, up to 8 (a ninth replaces the oldest). |
