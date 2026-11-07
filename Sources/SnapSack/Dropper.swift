@@ -57,6 +57,7 @@ struct Dropper {
     /// Saves the screenshot as a file in the folder under a double-click on Finder's background. The clipboard
     /// is never touched, so the screenshot doesn't stay on it.
     func deliver(png: Data, to target: FinderDrop.Target) {
+        Sounds.play(.drop)
         FinderDrop.log("deliver target=\(target) bytes=\(png.count) hash=\(png.hashValue)")
         switch target {
         case .folder(let folder):

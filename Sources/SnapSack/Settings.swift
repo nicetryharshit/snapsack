@@ -190,6 +190,10 @@ final class Settings {
         didSet { defaults.set(followDistance.rawValue, forKey: "followDistance") }
     }
 
+    var soundsEnabled: Bool {
+        didSet { defaults.set(soundsEnabled, forKey: "soundsEnabled") }
+    }
+
     private init() {
         escapeAction = Self.choice(UserDefaults.standard, "escapeAction", EscapeAction.putAwayNewest)
         shakeToToss = Self.flag(UserDefaults.standard, "shakeToToss", true)
@@ -204,6 +208,7 @@ final class Settings {
         restoreClipboard = Self.flag(UserDefaults.standard, "restoreClipboard", true)
         dropsKeepDays = Self.number(UserDefaults.standard, "dropsKeepDays", 7)
         followDistance = Self.choice(UserDefaults.standard, "followDistance", FollowDistance.close)
+        soundsEnabled = Self.flag(UserDefaults.standard, "soundsEnabled", true)
     }
 
     /// Puts every choice back to its first-launch value. The shortcut is handled separately, in Shortcut.
@@ -221,6 +226,7 @@ final class Settings {
         restoreClipboard = true
         dropsKeepDays = 7
         followDistance = .close
+        soundsEnabled = true
     }
 
     private static func choice<T: RawRepresentable>(_ defaults: UserDefaults, _ key: String, _ fallback: T) -> T

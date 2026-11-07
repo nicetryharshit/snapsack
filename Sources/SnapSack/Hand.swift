@@ -158,6 +158,7 @@ final class Hand: NSObject {
     func openFan(at origin: CGPoint) {
         guard mode == .carrying, cards.count > 1 else { return }
         mode = .fanned
+        Sounds.play(.fanOpen)
         hovered = nil
         fanStart = CACurrentMediaTime()
         fanOrigin = origin
@@ -245,6 +246,7 @@ final class Hand: NSObject {
     /// Everything back on the cursor.
     func closeFan() {
         guard mode == .fanned else { return }
+        Sounds.play(.fanClose)
         mode = .carrying
         hovered = nil
         returnToHand()

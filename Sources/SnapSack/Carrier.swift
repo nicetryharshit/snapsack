@@ -71,6 +71,7 @@ final class Carrier {
             return
         }
         hand.add(image: image, png: data)
+        Sounds.play(.capture)
     }
 
     // MARK: - Using the hand
@@ -173,6 +174,7 @@ final class Carrier {
     // MARK: - Toss and undo
 
     private func tossAll() {
+        if !hand.isEmpty { Sounds.play(.toss) }
         remember(hand.pngsInHand)
         hand.tossAll()
         tap.stop()

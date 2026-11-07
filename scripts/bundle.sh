@@ -15,6 +15,8 @@ rm -rf "$APP"
 mkdir -p "$APP/Contents/MacOS" "$APP/Contents/Resources"
 cp "$BIN" "$APP/Contents/MacOS/SnapSack"
 cp Resources/Info.plist "$APP/Contents/Info.plist"
+mkdir -p "$APP/Contents/Resources/Sounds"
+cp Resources/Sounds/{capture,drop,toss,fan_open,fan_close}.wav "$APP/Contents/Resources/Sounds/"
 
 echo "→ Building the icon…"
 ICONSET="$(mktemp -d)/AppIcon.iconset"

@@ -194,6 +194,8 @@ final class SettingsWindow: NSWindowController, NSWindowDelegate {
         messageLabel = caption("", width: 400)
         messageLabel.font = .systemFont(ofSize: 11)
 
+        let sounds = checkbox("Play sounds", on: Settings.shared.soundsEnabled) { Settings.shared.soundsEnabled = $0 }
+
         let login = checkbox("Open at login", on: LoginItem.isEnabled) { [weak self] on in
             self?.setLoginItem(on)
         }
@@ -215,6 +217,7 @@ final class SettingsWindow: NSWindowController, NSWindowDelegate {
                 (nil, clipboard),
                 ("Keep dropped files", keep),
                 (nil, login),
+                (nil, sounds),
             ]),
         ])
     }
