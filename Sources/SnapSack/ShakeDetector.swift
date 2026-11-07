@@ -3,7 +3,7 @@ import Foundation
 
 /// Recognises a shake: several quick direction reversals, each with real travel, inside a short window.
 /// Works per axis so a horizontal, vertical or diagonal shake all count. A small hysteresis stops
-/// ordinary hand tremor from registering as a reversal.
+/// ordinary hand tremor from registering as a reversal. How strict it is comes from `ShakeSensitivity`.
 struct ShakeDetector {
     private struct Axis {
         var direction = 0            // +1, -1, or 0 until the pointer first moves
@@ -15,14 +15,17 @@ struct ShakeDetector {
     private var x: Axis
     private var y: Axis
 
-    var minTravel: CGFloat = 55          // a stroke must cover at least this much to count
+    var minTravel: CGFloat               // a stroke must cover at least this much to count
     var hysteresis: CGFloat = 8          // ...and you must come back this far to turn it around
-    var window: TimeInterval = 0.65      // all reversals must land inside this many seconds
-    var reversalsNeeded = 4
+    var window: TimeInterval             // all reversals must land inside this many seconds
+    var reversalsNeeded: Int
 
-    init(at point: CGPoint) {
+    init(at point: CGPoint, sensitivity: ShakeSensitivity) {
         x = Axis(extreme: point.x, segmentStart: point.x)
         y = Axis(extreme: point.y, segmentStart: point.y)
+        minTravel = sensitivity.minTravel
+        window = sensitivity.window
+        reversalsNeeded = sensitivity.reversalsNeeded
     }
 
     /// Feed the latest pointer position. Returns true once a shake has been recognised.

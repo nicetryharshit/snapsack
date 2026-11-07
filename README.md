@@ -12,7 +12,7 @@ https://github.com/user-attachments/assets/4d9b88c8-8367-4c74-95a1-3f958166ce35
 | **Double-click** | With one card, it floats to where you clicked, then it's pasted and your clipboard is put back. With several, they fan out in the air around the click. |
 | **Click a card** | In the fan: that card floats to the field and pastes, and the rest go back on the cursor. Click empty space to put them all back. |
 | **Shake** | Let the whole hand go. |
-| **Esc** | Closes the fan, or puts away the newest card. |
+| **Esc** | Set in Settings › Controls. By default it puts away the newest card (closing the fan first if it's open). It can also clear the whole hand, close only the fan, or pass through to the app. |
 
 It lives in the menu bar (no Dock icon). Dropped screenshots are kept in
 `~/Library/Application Support/SnapSack/Drops` for a week so a pasted file path keeps working, then pruned.
@@ -36,9 +36,13 @@ need to right-click it and choose **Open** the first time.
 
 ## Settings
 
-Open **Settings…** from the menu bar (⌘,). Click **Record**, then press the combination you want. It needs ⌘, ⌃
-or ⌥; Esc cancels. If macOS or another app already uses the combination, SnapSack keeps the old one and tells you.
-**Reset to Default** goes back to ⌃⌥S. The choice is saved in UserDefaults under `screenshotShortcut`.
+Open **Settings…** from the menu bar (⌘,). It has three tabs, and every change applies straight away.
+
+- **General**: the screenshot shortcut (click **Record**, then press the combination; it needs ⌘, ⌃ or ⌥, and Esc cancels), whether your clipboard is put back after a paste, and how long dropped files are kept (1, 7 or 30 days).
+- **Controls**: what Esc does while you hold screenshots (put away the newest, clear the whole hand, close only the fan, or pass through to the app, which then gets Esc as usual), shake to toss and its sensitivity, how many screenshots you can hold (4 to 8), and card size.
+- **Animation**: animate cards on or off, Reduce motion (follows macOS by default), speed (0.5× to 2×), tilt (off, subtle or full), and whether the card under the pointer lifts in the fan.
+
+**Reset All to Defaults** puts everything back, the shortcut included. Choices are saved in UserDefaults.
 
 ## Build
 
@@ -75,7 +79,7 @@ macOS usually wants the app relaunched after you grant Screen Recording. If eith
 - Double-click always drops. SnapSack doesn't check whether the field accepts images, so if the paste does nothing
   there, the card is still gone.
 - Every tunable (size, follow easing, tilt, damping, fan size and curve, max cards) is in `Sources/SnapSack/Card.swift`, under `Tune`.
-- Shake sensitivity is in `Sources/SnapSack/ShakeDetector.swift` (`minTravel`, `window`, `reversalsNeeded`).
+- Shake sensitivity is set in Settings (Controls). Its presets are `ShakeSensitivity` in `Sources/SnapSack/Settings.swift`.
 
 ## Layout
 
@@ -83,8 +87,9 @@ macOS usually wants the app relaunched after you grant Screen Recording. If eith
 Sources/SnapSack/
   SnapSackApp.swift     entry point
   AppDelegate.swift     menu bar item, shortcut switching, first-run welcome
-  SettingsWindow.swift  the settings window and shortcut recorder
+  SettingsWindow.swift  the settings window (General, Controls, Animation) and shortcut recorder
   Shortcut.swift        the shortcut: key, modifiers, display, saving
+  Settings.swift        every setting: its choices, defaults and saving
   HotKey.swift          global shortcut registration (no extra permission)
   Carrier.swift         the interaction: capture → hold → drop / fan / pick / toss / cancel
   Hand.swift            the cards you're holding: stack, trailing, fan, hit-testing, exits

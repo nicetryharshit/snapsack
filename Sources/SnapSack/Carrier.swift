@@ -111,13 +111,26 @@ final class Carrier {
     }
 
     private func escaped() {
-        if hand.isFanned {
+        switch Settings.shared.escapeAction {
+        case .passThrough:
+            // ClickTap lets Esc reach the app, so this isn't reached. It's here to keep the switch complete.
+            return
+        case .putAwayNewest:
+            if hand.isFanned {
+                hand.closeFan()
+                tap.fanMode = false
+                return
+            }
+            hand.removeNewest()
+            if hand.isEmpty { tap.stop() }
+        case .clearHand:
+            hand.clearAll()
+            tap.stop()
+        case .closeFanOnly:
+            guard hand.isFanned else { return }
             hand.closeFan()
             tap.fanMode = false
-            return
         }
-        hand.removeNewest()
-        if hand.isEmpty { tap.stop() }
     }
 
     private func tossAll() {

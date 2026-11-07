@@ -12,6 +12,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     private var accessibilityItem = NSMenuItem()
     private var screenRecordingItem = NSMenuItem()
     private var loginItem = NSMenuItem()
+    private var hintItem = NSMenuItem()
 
     func applicationDidFinishLaunching(_ notification: Notification) {
         Dropper.pruneOldDrops()
@@ -66,9 +67,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         menu.addItem(carryItem)
 
         menu.addItem(.separator())
-        let hint = NSMenuItem(title: "Double-click drops  ·  Shake tosses  ·  Esc puts away", action: nil, keyEquivalent: "")
-        hint.isEnabled = false
-        menu.addItem(hint)
+        hintItem = NSMenuItem(title: Settings.shared.hintLine, action: nil, keyEquivalent: "")
+        hintItem.isEnabled = false
+        menu.addItem(hintItem)
 
         menu.addItem(permissionsSeparator)
         accessibilityItem = NSMenuItem(title: "Allow Accessibility…", action: #selector(allowAccessibility), keyEquivalent: "")
@@ -102,6 +103,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         screenRecordingItem.isHidden = !needsScreen
         permissionsSeparator.isHidden = !(needsAccessibility || needsScreen)
         loginItem.state = LoginItem.isEnabled ? .on : .off
+        hintItem.title = Settings.shared.hintLine
     }
 
     @objc private func carryScreenshot() {
@@ -150,16 +152,19 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         NSApp.activate()
         let alert = NSAlert()
         alert.messageText = "SnapSack is in your menu bar"
-        alert.informativeText = """
-        Press \(Shortcut.current.display) and drag over anything on screen. The screenshot rides your cursor.
-
-        Double-click to drop it into whatever's under the cursor.
-        Shake the mouse to toss it.
-        Press Esc to put it away.
-
-        You can change the shortcut in Settings.
-        SnapSack will ask for Accessibility and Screen Recording access the first time you use it.
-        """
+        var lines = [
+            "Press \(Shortcut.current.display) and drag over anything on screen. The screenshot rides your cursor.",
+            "",
+            "Double-click to drop it into whatever's under the cursor.",
+        ]
+        if Settings.shared.shakeToToss { lines.append("Shake the mouse to toss it.") }
+        lines.append(Settings.shared.escapeSentence)
+        lines += [
+            "",
+            "You can change all of this in Settings.",
+            "SnapSack will ask for Accessibility and Screen Recording access the first time you use it.",
+        ]
+        alert.informativeText = lines.joined(separator: "\n")
         alert.addButton(withTitle: "Got it")
         alert.runModal()
 

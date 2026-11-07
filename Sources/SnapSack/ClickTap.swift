@@ -8,7 +8,7 @@ import Foundation
 ///   The only check is on a double-click, to see whether it's on Finder's background (see FinderDrop). It has a short
 ///   Accessibility timeout, because the system disables a tap that answers slowly.
 /// - While the fan is open (`fanMode`) every click is swallowed and reported, so nothing underneath is triggered.
-/// - Esc is swallowed and becomes "put it away".
+/// - Esc is swallowed and handed to Carrier, unless Settings passes it through to the app.
 /// - `isPaused` makes the tap transparent (used while the system screenshot crosshair is up, so its Esc still works).
 ///
 /// Because the tap is only alive while holding, SnapSack adds no overhead to normal input.
@@ -133,7 +133,8 @@ final class ClickTap: @unchecked Sendable {
             return fanMode ? nil : Unmanaged.passUnretained(event)
 
         case .keyDown:
-            if event.getIntegerValueField(.keyboardEventKeycode) == 53 {   // Esc
+            if event.getIntegerValueField(.keyboardEventKeycode) == 53,
+               MainActor.assumeIsolated({ Settings.shared.escapeAction != .passThrough }) {   // Esc, unless it's left to the app
                 swallowNextEscUp = true
                 fire(onEscape)
                 return nil

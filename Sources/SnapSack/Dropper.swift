@@ -7,21 +7,20 @@ import CoreGraphics
 /// Messages, Figma...) take the image; Finder takes the file; a terminal gets the path.
 @MainActor
 struct Dropper {
-    private static let keepDays = 7
 
     static var directory: URL {
         let base = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask)[0]
         return base.appendingPathComponent("SnapSack/Drops", isDirectory: true)
     }
 
-    /// Removes dropped files older than a week. Nothing is ever filed for you permanently.
+    /// Removes dropped files older than the number of days in Settings. Nothing is ever filed for you permanently.
     static func pruneOldDrops() {
         let fm = FileManager.default
         guard let files = try? fm.contentsOfDirectory(
             at: directory,
             includingPropertiesForKeys: [.contentModificationDateKey]
         ) else { return }
-        let cutoff = Date().addingTimeInterval(-Double(keepDays) * 86_400)
+        let cutoff = Date().addingTimeInterval(-Double(Settings.shared.dropsKeepDays) * 86_400)
         for file in files {
             let modified = (try? file.resourceValues(forKeys: [.contentModificationDateKey]))?.contentModificationDate
             if let modified, modified < cutoff { try? fm.removeItem(at: file) }
@@ -45,6 +44,7 @@ struct Dropper {
             try? await Task.sleep(nanoseconds: 70_000_000)
             Self.pressCommandV()
 
+            guard Settings.shared.restoreClipboard else { return }
             // Hand the clipboard back, unless something else has copied in the meantime.
             try? await Task.sleep(nanoseconds: 900_000_000)
             if pasteboard.changeCount == ourChange {

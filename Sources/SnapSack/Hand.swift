@@ -61,7 +61,7 @@ final class Hand: NSObject {
     private var lastTime: CFTimeInterval = 0
     private var lastMouse = CGPoint.zero
     private var velocity = CGPoint.zero
-    private var shake = ShakeDetector(at: .zero)
+    private var shake = ShakeDetector(at: .zero, sensitivity: .medium)
     private var armShakeAt: CFTimeInterval = 0
     private var flipX = false
     private var flipY = false
@@ -74,14 +74,14 @@ final class Hand: NSObject {
         let now = CACurrentMediaTime()
         let mouse = NSEvent.mouseLocation
 
-        if cards.count >= Tune.maxCards { leave(cards.removeFirst(), .vanishing) }
+        if cards.count >= Settings.shared.maxCards { leave(cards.removeFirst(), .vanishing) }
 
         if cards.isEmpty {
             lastMouse = mouse
             velocity = .zero
             flipX = false
             flipY = false
-            shake = ShakeDetector(at: mouse)
+            shake = newShake(at: mouse)
         }
         armShakeAt = now + 0.5   // the end of the region-select drag must not read as a shake
 
@@ -106,6 +106,15 @@ final class Hand: NSObject {
         leave(card, .vanishing)
     }
 
+    /// Esc, when it's set to clear the hand: everything goes at once.
+    func clearAll() {
+        guard !cards.isEmpty else { return }
+        mode = .carrying
+        hovered = nil
+        for card in cards { leave(card, .vanishing) }
+        cards.removeAll()
+    }
+
     /// Shake: let the whole hand go.
     func tossAll() {
         guard mode == .carrying else { return }
@@ -117,6 +126,11 @@ final class Hand: NSObject {
         cards.removeAll()
     }
 
+    /// A fresh shake detector, with the sensitivity from Settings.
+    private func newShake(at point: CGPoint) -> ShakeDetector {
+        ShakeDetector(at: point, sensitivity: Settings.shared.shakeSensitivity)
+    }
+
     /// While the system crosshair is up the hand hides, so it can't end up in your screenshot.
     func suspend() { suspended = true }
 
@@ -124,7 +138,7 @@ final class Hand: NSObject {
         suspended = false
         lastMouse = NSEvent.mouseLocation
         velocity = .zero
-        shake = ShakeDetector(at: lastMouse)
+        shake = newShake(at: lastMouse)
         armShakeAt = CACurrentMediaTime() + 0.5
     }
 
@@ -232,7 +246,7 @@ final class Hand: NSObject {
         let now = CACurrentMediaTime()
         lastMouse = NSEvent.mouseLocation
         velocity = .zero
-        shake = ShakeDetector(at: lastMouse)
+        shake = newShake(at: lastMouse)
         armShakeAt = now + 0.4
         let anchor = CGPoint(x: flipX ? 1 : 0, y: flipY ? 0 : 1)
         for card in cards {
@@ -320,7 +334,7 @@ final class Hand: NSObject {
 
         // Which side of the cursor the stack hangs on; slides smoothly when it flips near an edge.
         updateFlips(at: mouse, size: top.size, stacked: cards.count)
-        let slide = 1 - exp(-dt * 16)
+        let slide = easeStep(16, dt)
         let targetAnchor = CGPoint(x: flipX ? 1 : 0, y: flipY ? 0 : 1)
         let behind = CGPoint(
             x: flipX ? -Tune.stackStep.x : Tune.stackStep.x,
@@ -343,7 +357,7 @@ final class Hand: NSObject {
             )
             // Cards further back ease a little more slowly, which is the delay you see as they catch up.
             let rate = max(Tune.minFollowRate, Tune.followRate * pow(Tune.trailFalloff, CGFloat(depth)))
-            let ease = 1 - exp(-dt * rate)
+            let ease = easeStep(rate, dt)
             card.pos.x += (desired.x - card.pos.x) * ease
             card.pos.y += (desired.y - card.pos.y) * ease
 
@@ -356,21 +370,21 @@ final class Hand: NSObject {
             card.alpha = min(1, CGFloat((now - card.born) / 0.06))
         }
 
-        if now > armShakeAt, shake.feed(mouse, at: now) { onShake?() }
+        if now > armShakeAt, shake.feed(mouse, at: now), Settings.shared.shakeToToss { onShake?() }
     }
 
     /// The fan: every card eases to its slot and holds; the one under the pointer lifts.
     private func stepFanned(dt: CGFloat, now: CFTimeInterval, mouse: CGPoint) {
         hovered = hitTestSticky(mouse)
-        let ease = 1 - exp(-dt * Tune.fanSnap)     // hover lift: snap
-        let slide = 1 - exp(-dt * 30)               // moving into the fan slots
+        let ease = easeStep(Tune.fanSnap, dt)     // hover lift: snap
+        let slide = easeStep(30, dt)               // moving into the fan slots
         for (index, card) in cards.enumerated() where index < slots.count {
             card.alpha = 1
             guard now - fanStart >= Double(index) * 0.012 else { continue }   // a slight cascade
             let slot = slots[index]
             let isHovered = hovered == index
             card.closeShown = isHovered
-            card.lift += ((isHovered ? 14 : 0) - card.lift) * ease
+            card.lift += ((isHovered ? Tune.hoverLift : 0) - card.lift) * ease
             card.pos.x += (slot.center.x - card.pos.x) * slide
             card.pos.y += (slot.center.y + card.lift - card.pos.y) * slide
             spring(&card.angle, &card.angleVel, to: slot.angle,
@@ -403,7 +417,7 @@ final class Hand: NSObject {
                 }
 
             case .drifting:
-                let p = min(1, t / 0.14)
+                let p = min(1, t / CGFloat(Tune.duration(0.14)))
                 let eased = 1 - pow(1 - p, 3)
                 let drag = exp(-dt * 9)
                 item.velocity.x *= drag
@@ -416,7 +430,7 @@ final class Hand: NSObject {
                 if p >= 1 { finished.append(item) }
 
             case .vanishing:
-                let p = min(1, t / 0.09)
+                let p = min(1, t / CGFloat(Tune.duration(0.09)))
                 let eased = 1 - pow(1 - p, 3)
                 spring(&card.angle, &card.angleVel, to: 0, k: Tune.angleStiffness, c: Tune.angleDamping, dt: dt)
                 card.scale = item.startScale * (1 - 0.10 * eased)
@@ -525,6 +539,11 @@ final class Hand: NSObject {
 
     private func lerp(_ a: CGFloat, _ b: CGFloat, _ t: CGFloat) -> CGFloat { a + (b - a) * t }
 
+    /// The share of the way to move this frame for an ease of `rate` per second, scaled by the speed setting.
+    private func easeStep(_ rate: CGFloat, _ dt: CGFloat) -> CGFloat {
+        Tune.instant ? 1 : 1 - exp(-dt * rate * Tune.speed)
+    }
+
     private func clamp(_ value: CGFloat, _ low: CGFloat, _ high: CGFloat) -> CGFloat { min(max(value, low), high) }
 
     private func easeInOut(_ p: CGFloat) -> CGFloat {
@@ -533,7 +552,13 @@ final class Hand: NSObject {
 
     /// One step of a damped spring pulling `x` toward `target`.
     private func spring(_ x: inout CGFloat, _ v: inout CGFloat, to target: CGFloat, k: CGFloat, c: CGFloat, dt: CGFloat) {
-        v += (-k * (x - target) - c * v) * dt
+        if Tune.instant {
+            x = target
+            v = 0
+            return
+        }
+        let s = Tune.speed
+        v += (-k * s * s * (x - target) - c * s * v) * dt
         x += v * dt
     }
 }

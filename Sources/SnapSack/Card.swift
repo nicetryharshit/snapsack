@@ -2,12 +2,12 @@ import AppKit
 import QuartzCore
 
 /// Every tunable in one place.
+@MainActor
 enum Tune {
     // Card
-    static let cardArea: CGFloat = 5_760                       // every thumbnail covers about this much area
+    static var cardArea: CGFloat { Settings.shared.cardSize.area }   // every thumbnail covers about this much area
     static let aspectRange: ClosedRange<CGFloat> = 0.8...1.6   // wider/taller shots are cropped to fit
     static let cornerRadius: CGFloat = 7
-    static let maxCards = 8                                    // a ninth replaces the oldest
 
     // Hanging off the cursor
     static let pivotInset = CGPoint(x: 10, y: 14)              // distance of the pin from the cursor tip
@@ -16,13 +16,13 @@ enum Tune {
     static let trailFalloff: CGFloat = 0.75                    // each card back eases this much slower: a small delay
     static let minFollowRate: CGFloat = 24                     // floor, so the back cards never drift far behind
     static let stackStep = CGPoint(x: 4, y: 4)                 // fixed offset per depth: the accordion's spacing
-    static let stackLean: CGFloat = 0.01                       // radians of fan-out per card back, tiny
+    static var stackLean: CGFloat { 0.01 * tiltFactor }   // radians of fan-out per card back, tiny
 
     // Tilt and settle
     static let angleStiffness: CGFloat = 420
     static let angleDamping: CGFloat = 40                      // critically damped: settles without ringing
     static let swingPerPointPerSecond: CGFloat = 0.000055      // radians of tilt per pt/s of cursor speed
-    static let maxSwing: CGFloat = 0.066                       // about 4 degrees, at most
+    static var maxSwing: CGFloat { 0.066 * tiltFactor }   // about 4 degrees at most, with full tilt
     static let scaleStiffness: CGFloat = 420
     static let scaleDamping: CGFloat = 34
     static let startScale: CGFloat = 0.85
@@ -38,8 +38,28 @@ enum Tune {
     static let fanScaleStiffness: CGFloat = 900               // a quicker, nearly critically damped hover pop
     static let fanScaleDamping: CGFloat = 52
 
+    // Settings: motion, tilt and hover come from the user's choices
+    static var tiltFactor: CGFloat { Settings.shared.tilt.factor }
+    static var speed: CGFloat { CGFloat(Settings.shared.motionSpeed) }
+    static var hoverLift: CGFloat { Settings.shared.fanHoverLift ? 14 : 0 }
+
+    /// True when nothing should slide, spring or fly: positions snap, and cards just appear and fade.
+    static var instant: Bool {
+        if !Settings.shared.animationsEnabled { return true }
+        switch Settings.shared.reduceMotion {
+        case .system: return NSWorkspace.shared.accessibilityDisplayShouldReduceMotion
+        case .on: return true
+        case .off: return false
+        }
+    }
+
+    /// A time in seconds at normal speed, stretched or shortened by the speed setting.
+    static func duration(_ base: CFTimeInterval) -> CFTimeInterval {
+        instant ? 0.0001 : base / Double(speed)
+    }
+
     // Leaving
-    static let flightDuration: CFTimeInterval = 0.18
+    static var flightDuration: CFTimeInterval { duration(0.18) }
 }
 
 /// One screenshot in your hand: its window plus the physics state that drives it.
