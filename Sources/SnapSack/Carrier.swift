@@ -32,6 +32,9 @@ final class Carrier {
         tap.escapeHandled = { [weak self] in self?.escapeHasWork() ?? false }
         tap.onUndo = { [weak self] in self?.undoLast() ?? false }
         tap.classify = { [weak self] point in self?.classifyDoubleClick(at: point) ?? true }
+        tap.onFanPress = { [weak self] in self?.hand.beginFanPress(at: NSEvent.mouseLocation) }
+        tap.onFanDragStart = { [weak self] in self?.dragStarted() }
+        tap.onFanDrop = { [weak self] in self?.fanDropped() }
     }
 
     // MARK: - Capturing
@@ -141,6 +144,7 @@ final class Carrier {
 
     /// Whether Esc has anything to do right now. When it doesn't, ClickTap lets it through to the app.
     private func escapeHasWork() -> Bool {
+        if hand.isDraggingFan { return Settings.shared.escapeAction != .passThrough }
         switch Settings.shared.escapeAction {
         case .passThrough: return false
         case .putAwayNewest, .clearHand: return !hand.isEmpty
@@ -149,6 +153,12 @@ final class Carrier {
     }
 
     private func escaped() {
+        // Esc during a drag takes the step back: the card returns to the fan and the fan stays open.
+        if hand.isDraggingFan {
+            hand.cancelFanDrag()
+            tap.fanMode = hand.isFanned
+            return
+        }
         switch Settings.shared.escapeAction {
         case .passThrough:
             // ClickTap lets Esc reach the app, so this isn't reached. It's here to keep the switch complete.
@@ -169,6 +179,29 @@ final class Carrier {
             hand.closeFan()
             tap.fanMode = false
         }
+    }
+
+    // MARK: - Dragging from the fan
+
+    /// The pointer moved far enough for a drag: the card leaves the fan, and the tap stops treating clicks as fan clicks.
+    private func dragStarted() {
+        hand.startFanDrag()
+        tap.fanMode = hand.isFanned
+    }
+
+    /// A fanned card was dragged and let go: it lands wherever the pointer is, not where the fan was opened.
+    private func fanDropped() {
+        guard hand.isDraggingFan else { return }
+        let point = NSEvent.mouseLocation
+        let cgPoint = Dropper.coreGraphicsPoint(point)
+        let target = FinderDrop.folderItem(at: cgPoint).map { FinderDrop.Target.folder($0) } ?? FinderDrop.target(at: cgPoint)
+        let dropper = self.dropper
+        hand.dropFanDrag { [weak self] png in
+            dropper.deliver(png: png, to: target, clickAt: point)
+            self?.remember([png])
+        }
+        tap.fanMode = hand.isFanned
+        if hand.isEmpty { tap.stopAfterPendingMouseUp() }
     }
 
     // MARK: - Toss and undo

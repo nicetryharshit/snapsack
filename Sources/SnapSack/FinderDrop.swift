@@ -58,6 +58,38 @@ enum FinderDrop {
         return decision
     }
 
+    /// For a drop (not a double-click): the folder under the point, so the screenshot goes inside it. Finder exposes
+    /// an item's file URL through Accessibility; this checks the item and its parent. Returns nil for files and
+    /// anything that isn't a folder, which leaves those drops to the normal paste.
+    static func folderItem(at point: CGPoint) -> URL? {
+        let system = AXUIElementCreateSystemWide()
+        AXUIElementSetMessagingTimeout(system, 0.12)
+
+        var found: AXUIElement?
+        guard AXUIElementCopyElementAtPosition(system, Float(point.x), Float(point.y), &found) == .success,
+              let first = found else { return nil }
+
+        var pid: pid_t = 0
+        AXUIElementGetPid(first, &pid)
+        guard let finder = NSRunningApplication.runningApplications(withBundleIdentifier: "com.apple.finder").first,
+              finder.processIdentifier == pid else { return nil }
+
+        var element = first
+        for _ in 0..<2 {
+            var value: CFTypeRef?
+            if AXUIElementCopyAttributeValue(element, "AXURL" as CFString, &value) == .success,
+               let url = value as? URL {
+                let isFolder = (try? url.resourceValues(forKeys: [.isDirectoryKey]))?.isDirectory == true
+                log("drop item url=\(url.lastPathComponent) folder=\(isFolder)")
+                return isFolder ? url : nil
+            }
+            guard let next = parent(of: element) else { break }
+            element = next
+        }
+        log("drop item has no url")
+        return nil
+    }
+
     /// The folder the front Finder window shows, asked of Finder itself. Runs when the screenshot lands, not inside
     /// the event tap. Returns nil if Finder has no window open, or if the permission is refused.
     static func frontWindowFolder() -> URL? {

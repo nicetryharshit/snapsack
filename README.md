@@ -6,6 +6,21 @@ every app, so it's the right place to keep things that don't belong to any app y
 
 https://github.com/user-attachments/assets/4d9b88c8-8367-4c74-95a1-3f958166ce35
 
+## Features
+
+- **Carry screenshots on the cursor.** Capture with the shortcut and the cards ride the pointer as a stack, holding up to 4 to 8 (you choose in Settings).
+- **Drop anywhere.** Double-click to drop one card where you clicked, or several at once, fanned out in the air.
+- **Fan and pick.** Click a fanned card or press 1–8 to drop it. Drag any card out of the fan to put it wherever you let go.
+- **Folders.** Drop onto a folder in Finder to save the screenshot inside it. Drop onto a Finder window's background to save it in that window's folder.
+- **Toss and undo.** Shake to let the whole hand go, and ⌘Z brings back the last drop or toss.
+- **Esc your way.** Put away the newest card, clear the hand, close only the fan, or pass Esc through to the app (Settings › Controls).
+- **Sounds.** Quiet sounds for capture, drop, toss and the fan. Turn them off in Settings › General.
+- **Settings.** Shortcut, clipboard restore, how long drops are kept, open at login, card size, distance from the cursor, animation speed, Reduce Motion, tilt, and fan lift. The version is shown at the bottom.
+- **Drops folder.** Dropped screenshots are kept for a week so pasted file paths keep working. The menu has **Show Drops Folder**.
+- **Menu bar only.** No Dock icon.
+
+## Controls
+
 | | |
 |---|---|
 | **⌃⌥S** (default) | Drag over anything on screen (Space switches to window mode). The screenshot joins your hand and rides your cursor. Press it again for more, up to 8 (a ninth replaces the oldest). |
@@ -14,6 +29,7 @@ https://github.com/user-attachments/assets/4d9b88c8-8367-4c74-95a1-3f958166ce35
 | **Shake** | Let the whole hand go. |
 | **Esc** | Set in Settings › Controls. By default it puts away the newest card (closing the fan first if it's open). It can also clear the whole hand, close only the fan, or pass through to the app. |
 | **1–8** | In the fan, picks that numbered card, the same as clicking it. |
+| **Drag** a card in the fan | Drops it wherever you let go, not where the fan opened. SnapSack clicks there first so the caret lands, so releasing on a button presses it. Esc during the drag puts the card back in the fan. |
 | **⌘Z** | Puts back the last dropped or tossed screenshots. The menu has **Undo Last Drop or Toss** too. It can't take back a paste that already landed, and a file saved to a folder stays there. |
 
 It lives in the menu bar (no Dock icon). Dropped screenshots are kept in
@@ -63,13 +79,21 @@ a stable signature.
 
 ## Permissions
 
-SnapSack asks for two things the first time you use it:
+SnapSack asks for these the first time it needs them. You can review them later in System Settings › Privacy & Security.
 
-- **Accessibility**: to catch the double-click and Esc while a screenshot is on the cursor, and to press ⌘V.
-- **Screen Recording**: so your selection contains other apps' pixels and not just the wallpaper.
+- **Accessibility** (required). SnapSack uses it to see the double-click, Esc, the number keys and ⌘Z while it holds
+  screenshots, to press ⌘V and click where you dropped, and to read what's under the pointer so a drop onto a Finder
+  folder lands inside it. Without it, holding and dropping won't work.
+- **Screen Recording** (required). Capture needs it so your selection contains other apps' pixels and not just the
+  wallpaper. macOS usually wants SnapSack relaunched after you grant it.
+- **Automation (Finder)** (asked when needed). To find the folder of the Finder window in front, SnapSack asks Finder
+  over AppleScript. If you say no, a drop onto a Finder window's background won't go into that window's folder.
+- **Login Items** (only for **Open at login**). macOS may ask you to approve SnapSack under System Settings › General › Login Items.
 
-macOS usually wants the app relaunched after you grant Screen Recording. If either gets stuck,
-`./scripts/snapsack.sh reset-permissions` clears SnapSack's grants.
+If either permission gets stuck, `./scripts/snapsack.sh reset-permissions` clears SnapSack's grants.
+
+When a drop lands somewhere unexpected, SnapSack writes what it found under the pointer to
+`~/Library/Application Support/SnapSack/finder-probe.log`. Include that file when you report it.
 
 ## How it feels (and where to tune it)
 
@@ -82,7 +106,7 @@ macOS usually wants the app relaunched after you grant Screen Recording. If eith
 - Toss is a short drift and fade. Drop is a quarter-second float into the field, then the paste.
 - Double-click always drops. SnapSack doesn't check whether the field accepts images, so if the paste does nothing
   there, the card is still gone.
-- Every tunable (size, follow easing, tilt, damping, fan size and curve, max cards) is in `Sources/SnapSack/Card.swift`, under `Tune`.
+- Every tunable (size, follow easing, tilt, damping, fan size and curve) is in `Sources/SnapSack/Card.swift`, under `Tune`. The choices you can change are in `Sources/SnapSack/Settings.swift`.
 - Shake sensitivity is set in Settings (Controls). Its presets are `ShakeSensitivity` in `Sources/SnapSack/Settings.swift`.
 
 ## Layout
@@ -99,12 +123,15 @@ Sources/SnapSack/
   Hand.swift            the cards you're holding: stack, trailing, fan, hit-testing, exits
   Card.swift            one screenshot's state, and all the tuning numbers
   CarryPanel.swift      the floating window that draws one card
-  ClickTap.swift        event tap alive only while holding (double-click, fan clicks, Esc)
+  ClickTap.swift        event tap alive only while holding (double-click, fan clicks, drags, Esc, 1–8, ⌘Z)
+  FinderDrop.swift      what's under the pointer in Finder (folders, windows), via Accessibility
+  Sounds.swift          the quiet sound effects, behind the Settings toggle
   ShakeDetector.swift   shake recognition
   Dropper.swift         paste + restore clipboard
   Capture.swift         system region picker
   Permissions.swift, LoginItem.swift, MenuBarIcon.swift
-Resources/              Info.plist, AppIcon.png (ink-sketch icon)
+Resources/              Info.plist, AppIcon.png (ink-sketch icon), Sounds/*.wav
+Tests/SnapSackTests/    shake recognition tests (run with swift test)
 scripts/bundle.sh       builds and signs build/SnapSack.app
 scripts/snapsack.sh     run / install / icon / reset-permissions / clean
 tools/make_icon.py      draws the icon

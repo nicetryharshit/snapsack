@@ -17,8 +17,9 @@ final class Hand: NSObject {
     var isFanned: Bool { mode == .fanned }
     var count: Int { cards.count }
     /// The screenshots in hand, oldest first.
-    var pngsInHand: [Data] { cards.map { $0.png } }
-    var isEmpty: Bool { cards.isEmpty }
+    var pngsInHand: [Data] { (cards + [dragged].compactMap { $0 }).map { $0.png } }
+    /// Nothing left in hand, counting a card that is being dragged out of the fan.
+    var isEmpty: Bool { cards.isEmpty && dragged == nil }
 
     // MARK: State
 
@@ -68,6 +69,11 @@ final class Hand: NSObject {
     private var flipX = false
     private var flipY = false
     private var suspended = false
+    private var pressIndex: Int?       // the fanned card under a press, before it's known whether it's a click or a drag
+    private var dragIndex = 0         // where the dragged card sat in the fan, so Esc can put it back
+    private var dragged: Card?         // the card being dragged: out of the fan, following the pointer
+
+    var isDraggingFan: Bool { dragged != nil }
 
     // MARK: - Adding and removing
 
@@ -110,11 +116,15 @@ final class Hand: NSObject {
 
     /// Esc, when it's set to clear the hand: everything goes at once.
     func clearAll() {
-        guard !cards.isEmpty else { return }
+        guard !cards.isEmpty || dragged != nil else { return }
         mode = .carrying
         hovered = nil
         for card in cards { leave(card, .vanishing) }
         cards.removeAll()
+        if let card = dragged {
+            dragged = nil
+            leave(card, .vanishing)
+        }
     }
 
     /// Shake: let the whole hand go.
@@ -126,6 +136,10 @@ final class Hand: NSObject {
         let drift = CGPoint(x: velocity.x * k, y: velocity.y * k)
         for card in cards { leave(card, .drifting, velocity: drift) }
         cards.removeAll()
+        if let card = dragged {
+            dragged = nil
+            leave(card, .drifting, velocity: drift)
+        }
     }
 
     /// A fresh shake detector, with the sensitivity from Settings.
@@ -164,6 +178,56 @@ final class Hand: NSObject {
         fanOrigin = origin
         slots = layoutFan(around: origin)
         for card in cards { card.reanchor(to: CGPoint(x: 0.5, y: 0.5)) }
+    }
+
+    /// A press in the fan: remembers the card under it, so a drag can take that card.
+    func beginFanPress(at mouse: CGPoint) {
+        guard mode == .fanned else { pressIndex = nil; return }
+        if let index = hitTest(mouse), !isOnClose(index, mouse) {
+            pressIndex = index
+        } else {
+            pressIndex = nil
+        }
+    }
+
+    /// The pointer moved far enough for a drag: the pressed card leaves the fan and follows the pointer,
+    /// and the rest of the fan goes back to following the cursor.
+    func startFanDrag() {
+        guard mode == .fanned, let index = pressIndex, cards.indices.contains(index) else { return }
+        let card = cards.remove(at: index)
+        card.closeShown = false
+        card.reanchor(to: CGPoint(x: 0.5, y: 0.5))
+        dragIndex = index
+        dragged = card
+        pressIndex = nil
+        mode = .carrying
+        hovered = nil
+        returnToHand()
+    }
+
+    /// Esc during a drag: the card goes back into the fan where it was, and the fan stays open.
+    func cancelFanDrag() {
+        guard let card = dragged else { return }
+        dragged = nil
+        cards.insert(card, at: min(dragIndex, cards.count))
+        card.closeShown = false
+        mode = .fanned
+        hovered = nil
+        slots = layoutFan(around: fanOrigin)
+        for c in cards { c.reanchor(to: CGPoint(x: 0.5, y: 0.5)) }
+        shake = newShake(at: lastMouse)
+        armShakeAt = CACurrentMediaTime() + 0.5
+    }
+
+    /// The drag ends: the card flies to wherever the pointer is and lands there.
+    func dropFanDrag(onLanded: @escaping (Data) -> Void) {
+        guard let card = dragged else { return }
+        dragged = nil
+        // The drag's motion must not count towards a shake: start the detector fresh.
+        shake = newShake(at: lastMouse)
+        armShakeAt = CACurrentMediaTime() + 0.5
+        let png = card.png
+        leave(card, .flying(from: card.pos, to: NSEvent.mouseLocation), onLanded: { onLanded(png) })
     }
 
     enum FanClick { case picked, removed, missed }
@@ -325,14 +389,17 @@ final class Hand: NSObject {
         stepLeaving(dt: dt, now: now)
 
         let visible: CGFloat = suspended ? 0 : 1
-        for card in cards { card.render(alphaMultiplier: visible) }
+        let handVisible: CGFloat = (suspended || dragged != nil) ? 0 : 1
+        for card in cards { card.render(alphaMultiplier: handVisible) }
+        dragged?.render(alphaMultiplier: visible)
         for item in leaving { item.card.render(alphaMultiplier: 1) }
 
-        if cards.isEmpty && leaving.isEmpty { stopLink() }
+        if cards.isEmpty && leaving.isEmpty && dragged == nil { stopLink() }
     }
 
     /// The stack hanging off the cursor.
     private func stepHanging(dt: CGFloat, now: CFTimeInterval, mouse: CGPoint) {
+        if let dragged { followPointer(dragged, mouse: mouse, dt: dt) }
         guard let top = cards.last else { return }
 
         // Smoothed pointer velocity.
@@ -380,7 +447,17 @@ final class Hand: NSObject {
             card.alpha = min(1, CGFloat((now - card.born) / 0.06))
         }
 
-        if now > armShakeAt, shake.feed(mouse, at: now), Settings.shared.shakeToToss { onShake?() }
+        if dragged == nil, now > armShakeAt, shake.feed(mouse, at: now), Settings.shared.shakeToToss { onShake?() }
+    }
+
+    /// A card being dragged follows the pointer, straightening and settling to hand size.
+    private func followPointer(_ card: Card, mouse: CGPoint, dt: CGFloat) {
+        let follow = easeStep(40, dt)
+        card.pos.x += (mouse.x - card.pos.x) * follow
+        card.pos.y += (mouse.y - card.pos.y) * follow
+        spring(&card.angle, &card.angleVel, to: 0, k: Tune.angleStiffness, c: Tune.angleDamping, dt: dt)
+        spring(&card.scale, &card.scaleVel, to: 1, k: Tune.scaleStiffness, c: Tune.scaleDamping, dt: dt)
+        card.alpha = 1
     }
 
     /// The fan: every card eases to its slot and holds; the one under the pointer lifts.

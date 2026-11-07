@@ -27,7 +27,7 @@ struct Dropper {
         }
     }
 
-    func paste(png: Data) {
+    func paste(png: Data, clickAt point: CGPoint? = nil) {
         let pasteboard = NSPasteboard.general
         let snapshot = Self.snapshot(of: pasteboard)
         let fileURL = Self.write(png, in: Self.directory)
@@ -41,6 +41,11 @@ struct Dropper {
 
         // Give the second click a beat to settle, then press ⌘V.
         Task { @MainActor in
+            if let point {
+                // Click first, so the app under the drop point puts its caret there.
+                Self.click(at: point)
+                try? await Task.sleep(nanoseconds: 90_000_000)
+            }
             try? await Task.sleep(nanoseconds: 70_000_000)
             Self.pressCommandV()
 
@@ -56,7 +61,7 @@ struct Dropper {
 
     /// Saves the screenshot as a file in the folder under a double-click on Finder's background. The clipboard
     /// is never touched, so the screenshot doesn't stay on it.
-    func deliver(png: Data, to target: FinderDrop.Target) {
+    func deliver(png: Data, to target: FinderDrop.Target, clickAt point: CGPoint? = nil) {
         Sounds.play(.drop)
         FinderDrop.log("deliver target=\(target) bytes=\(png.count) hash=\(png.hashValue)")
         switch target {
@@ -66,10 +71,10 @@ struct Dropper {
             if let folder = FinderDrop.frontWindowFolder() {
                 _ = Self.write(png, in: folder)
             } else {
-                paste(png: png)
+                paste(png: png, clickAt: point)
             }
         case .paste, .leaveAlone:
-            paste(png: png)
+            paste(png: png, clickAt: point)
         }
     }
 
@@ -102,6 +107,24 @@ struct Dropper {
             return url
         } catch {
             return nil
+        }
+    }
+
+    /// AppKit counts y from the bottom of the primary screen; CoreGraphics and Accessibility count from the top.
+    static func coreGraphicsPoint(_ point: CGPoint) -> CGPoint {
+        let top = NSScreen.screens.first?.frame.height ?? 0
+        return CGPoint(x: point.x, y: top - point.y)
+    }
+
+    /// A click at `point` (AppKit screen coordinates), marked as ours so SnapSack's own tap lets it through.
+    private static func click(at point: CGPoint) {
+        let location = coreGraphicsPoint(point)
+        let source = CGEventSource(stateID: .combinedSessionState)
+        for type in [CGEventType.leftMouseDown, .leftMouseUp] {
+            let event = CGEvent(mouseEventSource: source, mouseType: type, mouseCursorPosition: location, mouseButton: .left)
+            event?.setIntegerValueField(.mouseEventClickState, value: 1)
+            event?.setIntegerValueField(.eventSourceUserData, value: ClickTap.syntheticMarker)
+            event?.post(tap: .cgSessionEventTap)
         }
     }
 

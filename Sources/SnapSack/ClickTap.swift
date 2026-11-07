@@ -21,6 +21,12 @@ final class ClickTap: @unchecked Sendable {
     var escapeHandled: (@MainActor () -> Bool)?
     /// Asked on ⌘Z: false means nothing to undo, so ⌘Z goes to the app.
     var onUndo: (@MainActor () -> Bool)?
+    /// In the fan: a press, a drag starting, and a release after a drag or after a plain click.
+    var onFanPress: (@MainActor () -> Void)?
+    var onFanDragStart: (@MainActor () -> Void)?
+    var onFanDrop: (@MainActor () -> Void)?
+    /// Marks clicks SnapSack sends itself, so this tap lets them through.
+    static let syntheticMarker: Int64 = 0x534E4150
     var isPaused = false
     var fanMode = false
     /// Asked on a double-click: false means the click isn't ours, so it passes through to whatever is under it.
@@ -33,13 +39,15 @@ final class ClickTap: @unchecked Sendable {
     private var swallowNextEscUp = false
     private var swallowNextDigitUp: Int64?
     private var swallowNextZUp = false
+    private var fanPressPoint: CGPoint?
+    private var fanDragging = false
     private var generation = 0        // lets a stale safety timer tell it belongs to an earlier session
 
     @discardableResult
     func start() -> Bool {
         if port != nil { return true }
 
-        let types: [CGEventType] = [.leftMouseDown, .leftMouseUp, .rightMouseDown, .rightMouseUp, .keyDown, .keyUp]
+        let types: [CGEventType] = [.leftMouseDown, .leftMouseUp, .leftMouseDragged, .rightMouseDown, .rightMouseUp, .keyDown, .keyUp]
         let mask = types.reduce(CGEventMask(0)) { $0 | (CGEventMask(1) << CGEventMask($1.rawValue)) }
 
         let refcon = Unmanaged.passUnretained(self).toOpaque()
@@ -63,6 +71,8 @@ final class ClickTap: @unchecked Sendable {
         swallowNextEscUp = false
         swallowNextDigitUp = nil
         swallowNextZUp = false
+        fanPressPoint = nil
+        fanDragging = false
         fanMode = false
         return true
     }
@@ -123,13 +133,16 @@ final class ClickTap: @unchecked Sendable {
             if let port { CGEvent.tapEnable(tap: port, enable: true) }
             return Unmanaged.passUnretained(event)
         }
+        if event.getIntegerValueField(.eventSourceUserData) == ClickTap.syntheticMarker { return Unmanaged.passUnretained(event) }
         if isPaused { return Unmanaged.passUnretained(event) }
 
         switch type {
         case .leftMouseDown:
             if fanMode {
                 swallowNextMouseUp = true
-                fire(onFanClick)
+                fanPressPoint = event.location
+                fanDragging = false
+                fire(onFanPress)
                 return nil
             }
             if event.getIntegerValueField(.mouseEventClickState) >= 2 {
@@ -145,6 +158,12 @@ final class ClickTap: @unchecked Sendable {
         case .leftMouseUp:
             if swallowNextMouseUp {
                 swallowNextMouseUp = false
+                if fanPressPoint != nil {
+                    let dragged = fanDragging
+                    fanPressPoint = nil
+                    fanDragging = false
+                    fire(dragged ? onFanDrop : onFanClick)
+                }
                 if stopAfterMouseUp {
                     stopAfterMouseUp = false
                     DispatchQueue.main.async { [weak self] in self?.stop() }
@@ -152,6 +171,15 @@ final class ClickTap: @unchecked Sendable {
                 return nil
             }
             return Unmanaged.passUnretained(event)
+
+        case .leftMouseDragged:
+            guard fanMode, let press = fanPressPoint else { return Unmanaged.passUnretained(event) }
+            let moved = hypot(event.location.x - press.x, event.location.y - press.y)
+            if !fanDragging, moved > 4 {
+                fanDragging = true
+                fire(onFanDragStart)
+            }
+            return nil
 
         case .rightMouseDown, .rightMouseUp:
             return fanMode ? nil : Unmanaged.passUnretained(event)
@@ -163,7 +191,9 @@ final class ClickTap: @unchecked Sendable {
                 fire(onEscape)
                 return nil
             }
-            if fanMode, let digit = Self.digit(forKeyCode: key) {
+            // Plain digits only: ⌘1 and friends belong to the app in front.
+            if fanMode, event.flags.intersection([.maskCommand, .maskControl, .maskAlternate]).isEmpty,
+               let digit = Self.digit(forKeyCode: key) {
                 swallowNextDigitUp = key
                 let handler = onFanDigit
                 DispatchQueue.main.async {
@@ -173,7 +203,9 @@ final class ClickTap: @unchecked Sendable {
                 }
                 return nil
             }
-            if key == 6, event.flags.contains(.maskCommand), MainActor.assumeIsolated({ onUndo?() ?? false }) {   // ⌘Z
+            // Exactly ⌘Z: ⇧⌘Z (redo) and other combinations go to the app in front.
+            if key == 6, event.flags.intersection([.maskCommand, .maskShift, .maskControl, .maskAlternate]) == .maskCommand,
+               MainActor.assumeIsolated({ onUndo?() ?? false }) {   // ⌘Z
                 swallowNextZUp = true
                 return nil
             }
