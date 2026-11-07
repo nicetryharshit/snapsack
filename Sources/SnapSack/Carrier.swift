@@ -2,10 +2,12 @@ import AppKit
 
 /// The whole interaction, start to finish:
 ///
-///  ⌃⌥S         pick a region; it joins your hand (up to 8) and hangs off the cursor
+///  ⌃⌥S            pick a region; it joins your hand (up to 8) and hangs off the cursor
 ///  double-click   one card floats to the click and pastes; several fan out so you can pick
 ///  click a card   in the fan: that card floats to the field and pastes, the rest go back on the cursor
-///  Esc            closes the fan, or puts away the newest card
+///  1–8            in the fan: picks that numbered card, the same as clicking it
+///  Esc            set in Settings: put away the newest, clear the hand, close the fan, or pass through
+///  ⌘Z             puts the last dropped or tossed screenshots back in hand
 ///  shake          lets the whole hand go
 @MainActor
 final class Carrier {
@@ -16,12 +18,19 @@ final class Carrier {
     private var fanLanding = CGPoint.zero      // where the double-click happened: where the pick will land
     private var pendingDrop: FinderDrop.Target = .paste   // decided on the double-click, used when the card lands
     private var fanDrop: FinderDrop.Target = .paste       // the same, kept while the fan is open
+    /// The screenshots from the last drop or toss, oldest first, so undo can put them back.
+    private var lastRemoved: [Data] = []
+
+    var canUndo: Bool { !lastRemoved.isEmpty }
 
     init() {
         hand.onShake = { [weak self] in self?.tossAll() }
         tap.onDoubleClick = { [weak self] in self?.doubleClicked() }
         tap.onFanClick = { [weak self] in self?.fanClicked() }
+        tap.onFanDigit = { [weak self] digit in self?.pickByNumber(digit) }
         tap.onEscape = { [weak self] in self?.escaped() }
+        tap.escapeHandled = { [weak self] in self?.escapeHasWork() ?? false }
+        tap.onUndo = { [weak self] in self?.undoLast() ?? false }
         tap.classify = { [weak self] point in self?.classifyDoubleClick(at: point) ?? true }
     }
 
@@ -75,7 +84,10 @@ final class Carrier {
             // One card: it floats to where you clicked, and the drop fires when it lands.
             let dropper = self.dropper
             let target = pendingDrop
-            hand.flyNewest(to: landing) { png in dropper.deliver(png: png, to: target) }
+            hand.flyNewest(to: landing) { [weak self] png in
+                dropper.deliver(png: png, to: target)
+                self?.remember([png])
+            }
             tap.stopAfterPendingMouseUp()
         default:
             // Several: spread them out, hold them, and let the next click choose.
@@ -94,8 +106,22 @@ final class Carrier {
         let dropper = self.dropper
         let target = fanDrop
         FinderDrop.log("fan click cards=\(hand.count)")
-        hand.fanClick(at: NSEvent.mouseLocation, landing: fanLanding) { png in
+        hand.fanClick(at: NSEvent.mouseLocation, landing: fanLanding) { [weak self] png in
             dropper.deliver(png: png, to: target)
+            self?.remember([png])
+        }
+        tap.fanMode = hand.isFanned
+        if hand.isEmpty { tap.stopAfterPendingMouseUp() }
+    }
+
+    /// A number key in the fan picks that card, the same as clicking it.
+    private func pickByNumber(_ digit: Int) {
+        guard hand.isFanned, digit >= 1, digit <= hand.count else { return }
+        let dropper = self.dropper
+        let target = fanDrop
+        hand.pickFanned(at: digit - 1, landing: fanLanding) { [weak self] png in
+            dropper.deliver(png: png, to: target)
+            self?.remember([png])
         }
         tap.fanMode = hand.isFanned
         if hand.isEmpty { tap.stopAfterPendingMouseUp() }
@@ -108,6 +134,17 @@ final class Carrier {
         guard !hand.isEmpty else { return false }
         pendingDrop = FinderDrop.target(at: point)
         return pendingDrop != .leaveAlone
+    }
+
+    // MARK: - Esc
+
+    /// Whether Esc has anything to do right now. When it doesn't, ClickTap lets it through to the app.
+    private func escapeHasWork() -> Bool {
+        switch Settings.shared.escapeAction {
+        case .passThrough: return false
+        case .putAwayNewest, .clearHand: return !hand.isEmpty
+        case .closeFanOnly: return hand.isFanned
+        }
     }
 
     private func escaped() {
@@ -133,8 +170,33 @@ final class Carrier {
         }
     }
 
+    // MARK: - Toss and undo
+
     private func tossAll() {
+        remember(hand.pngsInHand)
         hand.tossAll()
         tap.stop()
+    }
+
+    private func remember(_ pngs: [Data]) {
+        guard !pngs.isEmpty else { return }
+        lastRemoved = pngs
+    }
+
+    /// Puts the last dropped or tossed screenshots back in hand, starting to hold again if nothing is held.
+    /// It can't take back a paste that already landed in another app, and a file saved to a folder stays there.
+    @discardableResult
+    func undoLast() -> Bool {
+        guard !lastRemoved.isEmpty, !isCapturing, !hand.isFanned else { return false }
+        guard tap.start() else {
+            Permissions.requestAccessibility()
+            return false
+        }
+        let pngs = lastRemoved
+        lastRemoved = []
+        for png in pngs {
+            if let image = NSImage(data: png) { hand.add(image: image, png: png) }
+        }
+        return true
     }
 }

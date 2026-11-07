@@ -16,6 +16,8 @@ final class Hand: NSObject {
     private(set) var mode: Mode = .carrying
     var isFanned: Bool { mode == .fanned }
     var count: Int { cards.count }
+    /// The screenshots in hand, oldest first.
+    var pngsInHand: [Data] { cards.map { $0.png } }
     var isEmpty: Bool { cards.isEmpty }
 
     // MARK: State
@@ -184,6 +186,13 @@ final class Hand: NSObject {
             removeFanned(at: index)
             return .removed
         }
+        pickFanned(at: index, landing: landing, onLanded: onLanded)
+        return .picked
+    }
+
+    /// Picks one card out of the fan: it flies to `landing`, and the rest go back on the cursor.
+    func pickFanned(at index: Int, landing: CGPoint, onLanded: @escaping (Data) -> Void) {
+        guard mode == .fanned, cards.indices.contains(index) else { return }
         let card = cards.remove(at: index)
         card.closeShown = false
         let png = card.png
@@ -200,7 +209,6 @@ final class Hand: NSObject {
         mode = .carrying
         hovered = nil
         returnToHand()
-        return .picked
     }
 
     /// Takes one card out of the fan without pasting it. The rest spread out again; with one card left the fan closes.

@@ -16,6 +16,7 @@ final class SettingsWindow: NSWindowController, NSWindowDelegate {
     private var isRecording = false
     /// Keeps each control's callback alive while its content is shown.
     private var targets: [ActionTarget] = []
+    private var loginCheckbox: NSButton?
 
     init(apply: @escaping (Shortcut) -> String?) {
         self.apply = apply
@@ -38,6 +39,7 @@ final class SettingsWindow: NSWindowController, NSWindowDelegate {
     }
 
     func show() {
+        loginCheckbox?.state = LoginItem.isEnabled ? .on : .off
         NSApp.activate()
         showWindow(nil)
         window?.makeKeyAndOrderFront(nil)
@@ -60,6 +62,12 @@ final class SettingsWindow: NSWindowController, NSWindowDelegate {
         reset.translatesAutoresizingMaskIntoConstraints = false
         wire(reset) { [weak self] in self?.resetEverything() }
 
+        let version = NSTextField(labelWithString: AppVersion.text)
+        version.font = .systemFont(ofSize: 11)
+        version.textColor = .secondaryLabelColor
+        version.translatesAutoresizingMaskIntoConstraints = false
+        content.addSubview(version)
+
         content.addSubview(tabs)
         content.addSubview(reset)
         NSLayoutConstraint.activate([
@@ -69,6 +77,8 @@ final class SettingsWindow: NSWindowController, NSWindowDelegate {
             tabs.bottomAnchor.constraint(equalTo: reset.topAnchor, constant: -10),
             reset.leadingAnchor.constraint(equalTo: content.leadingAnchor, constant: 20),
             reset.bottomAnchor.constraint(equalTo: content.bottomAnchor, constant: -14),
+            version.trailingAnchor.constraint(equalTo: content.trailingAnchor, constant: -20),
+            version.centerYAnchor.constraint(equalTo: reset.centerYAnchor),
         ])
         refresh()
     }
@@ -184,6 +194,11 @@ final class SettingsWindow: NSWindowController, NSWindowDelegate {
         messageLabel = caption("", width: 400)
         messageLabel.font = .systemFont(ofSize: 11)
 
+        let login = checkbox("Open at login", on: LoginItem.isEnabled) { [weak self] on in
+            self?.setLoginItem(on)
+        }
+        loginCheckbox = login
+
         let clipboard = checkbox("Put my clipboard back after pasting", on: Settings.shared.restoreClipboard) {
             Settings.shared.restoreClipboard = $0
         }
@@ -196,7 +211,11 @@ final class SettingsWindow: NSWindowController, NSWindowDelegate {
             currentLabel,
             buttons,
             messageLabel,
-            form([(nil, clipboard), ("Keep dropped files", keep)]),
+            form([
+                (nil, clipboard),
+                ("Keep dropped files", keep),
+                (nil, login),
+            ]),
         ])
     }
 
@@ -208,9 +227,13 @@ final class SettingsWindow: NSWindowController, NSWindowDelegate {
             Settings.shared.escapeAction = action
             self?.escapeCaption.stringValue = action.caption
         }
-        let shake = checkbox("Shake to toss", on: settings.shakeToToss) { Settings.shared.shakeToToss = $0 }
         let sensitivity = popup(ShakeSensitivity.allCases, title: { $0.title }, selected: settings.shakeSensitivity) {
             Settings.shared.shakeSensitivity = $0
+        }
+        sensitivity.isEnabled = settings.shakeToToss
+        let shake = checkbox("Shake to toss", on: settings.shakeToToss) { on in
+            Settings.shared.shakeToToss = on
+            sensitivity.isEnabled = on
         }
         let maxCards = popup([4, 5, 6, 7, 8], title: { "\($0)" }, selected: settings.maxCards) {
             Settings.shared.maxCards = $0
@@ -254,6 +277,21 @@ final class SettingsWindow: NSWindowController, NSWindowDelegate {
                 (nil, hover),
             ]),
         ])
+    }
+
+    // MARK: - Login item
+
+    private func setLoginItem(_ on: Bool) {
+        do {
+            try LoginItem.set(on)
+        } catch {
+            let alert = NSAlert(error: error)
+            alert.messageText = "Couldn't change the login item"
+            NSApp.activate()
+            alert.runModal()
+        }
+        // Show what actually happened, which may differ if the change failed.
+        loginCheckbox?.state = LoginItem.isEnabled ? .on : .off
     }
 
     // MARK: - Reset

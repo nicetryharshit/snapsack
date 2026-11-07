@@ -13,6 +13,8 @@ https://github.com/user-attachments/assets/4d9b88c8-8367-4c74-95a1-3f958166ce35
 | **Click a card** | In the fan: that card floats to the field and pastes, and the rest go back on the cursor. Click empty space to put them all back. |
 | **Shake** | Let the whole hand go. |
 | **Esc** | Set in Settings › Controls. By default it puts away the newest card (closing the fan first if it's open). It can also clear the whole hand, close only the fan, or pass through to the app. |
+| **1–8** | In the fan, picks that numbered card, the same as clicking it. |
+| **⌘Z** | Puts back the last dropped or tossed screenshots. The menu has **Undo Last Drop or Toss** too. It can't take back a paste that already landed, and a file saved to a folder stays there. |
 
 It lives in the menu bar (no Dock icon). Dropped screenshots are kept in
 `~/Library/Application Support/SnapSack/Drops` for a week so a pasted file path keeps working, then pruned.
@@ -29,7 +31,7 @@ SnapSack isn't signed or notarized by Apple, so you build it yourself on your Ma
    This builds `SnapSack.app` and copies it to `~/Applications`.
 3. Open SnapSack from Spotlight or Finder. Its icon appears in the menu bar.
 4. Grant Accessibility and Screen Recording when asked (System Settings > Privacy & Security).
-5. Optional: open its menu and turn on **Open at Login**.
+5. Optional: open **Settings…** (General) and turn on **Open at login**.
 
 Because you build it on your own Mac, macOS doesn't block it. If you download a copy from somewhere else, you may
 need to right-click it and choose **Open** the first time.
@@ -38,11 +40,13 @@ need to right-click it and choose **Open** the first time.
 
 Open **Settings…** from the menu bar (⌘,). It has three tabs, and every change applies straight away.
 
-- **General**: the screenshot shortcut (click **Record**, then press the combination; it needs ⌘, ⌃ or ⌥, and Esc cancels), whether your clipboard is put back after a paste, and how long dropped files are kept (1, 7 or 30 days).
+- **General**: the screenshot shortcut (click **Record**, then press the combination; it needs ⌘, ⌃ or ⌥, and Esc cancels), whether your clipboard is put back after a paste, how long dropped files are kept (1, 7 or 30 days), and whether SnapSack opens at login.
 - **Controls**: what Esc does while you hold screenshots (put away the newest, clear the whole hand, close only the fan, or pass through to the app, which then gets Esc as usual), shake to toss and its sensitivity, how many screenshots you can hold (4 to 8), and card size.
 - **Animation**: animate cards on or off, Reduce motion (follows macOS by default), speed (0.5× to 2×), tilt (off, subtle or full), and whether the card under the pointer lifts in the fan.
 
 **Reset All to Defaults** puts everything back, the shortcut included. Choices are saved in UserDefaults.
+
+Run `swift test` to check the shake recognition for each sensitivity.
 
 ## Build
 
@@ -50,7 +54,7 @@ Needs macOS 14+ and Xcode or the command line tools (`xcode-select --install`).
 
 ```
 ./scripts/snapsack.sh run        # build SnapSack.app, quit any old copy, launch
-./scripts/snapsack.sh install    # copy to ~/Applications (use this one for "Open at Login")
+./scripts/snapsack.sh install    # copy to ~/Applications (use this one for "Open at login")
 ./scripts/snapsack.sh icon       # redraw the app icon (pip3 install pillow)
 ```
 

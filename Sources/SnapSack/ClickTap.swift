@@ -16,6 +16,11 @@ final class ClickTap: @unchecked Sendable {
     var onDoubleClick: (@MainActor () -> Void)?
     var onFanClick: (@MainActor () -> Void)?
     var onEscape: (@MainActor () -> Void)?
+    var onFanDigit: (@MainActor (Int) -> Void)?
+    /// Asked on Esc: false means nothing for SnapSack to do, so Esc goes to the app.
+    var escapeHandled: (@MainActor () -> Bool)?
+    /// Asked on ⌘Z: false means nothing to undo, so ⌘Z goes to the app.
+    var onUndo: (@MainActor () -> Bool)?
     var isPaused = false
     var fanMode = false
     /// Asked on a double-click: false means the click isn't ours, so it passes through to whatever is under it.
@@ -26,6 +31,8 @@ final class ClickTap: @unchecked Sendable {
     private var swallowNextMouseUp = false
     private var stopAfterMouseUp = false
     private var swallowNextEscUp = false
+    private var swallowNextDigitUp: Int64?
+    private var swallowNextZUp = false
     private var generation = 0        // lets a stale safety timer tell it belongs to an earlier session
 
     @discardableResult
@@ -54,6 +61,8 @@ final class ClickTap: @unchecked Sendable {
         swallowNextMouseUp = false
         stopAfterMouseUp = false
         swallowNextEscUp = false
+        swallowNextDigitUp = nil
+        swallowNextZUp = false
         fanMode = false
         return true
     }
@@ -84,6 +93,21 @@ final class ClickTap: @unchecked Sendable {
             }
         } else {
             stop()
+        }
+    }
+
+    /// The number a key stands for, on the top row: 1 to 8.
+    private static func digit(forKeyCode code: Int64) -> Int? {
+        switch code {
+        case 18: return 1
+        case 19: return 2
+        case 20: return 3
+        case 21: return 4
+        case 23: return 5
+        case 22: return 6
+        case 26: return 7
+        case 28: return 8
+        default: return nil
         }
     }
 
@@ -133,17 +157,40 @@ final class ClickTap: @unchecked Sendable {
             return fanMode ? nil : Unmanaged.passUnretained(event)
 
         case .keyDown:
-            if event.getIntegerValueField(.keyboardEventKeycode) == 53,
-               MainActor.assumeIsolated({ Settings.shared.escapeAction != .passThrough }) {   // Esc, unless it's left to the app
+            let key = event.getIntegerValueField(.keyboardEventKeycode)
+            if key == 53, MainActor.assumeIsolated({ escapeHandled?() ?? false }) {   // Esc, when SnapSack has something for it
                 swallowNextEscUp = true
                 fire(onEscape)
+                return nil
+            }
+            if fanMode, let digit = Self.digit(forKeyCode: key) {
+                swallowNextDigitUp = key
+                let handler = onFanDigit
+                DispatchQueue.main.async {
+                    MainActor.assumeIsolated {
+                        if let handler { handler(digit) }
+                    }
+                }
+                return nil
+            }
+            if key == 6, event.flags.contains(.maskCommand), MainActor.assumeIsolated({ onUndo?() ?? false }) {   // ⌘Z
+                swallowNextZUp = true
                 return nil
             }
             return Unmanaged.passUnretained(event)
 
         case .keyUp:
-            if swallowNextEscUp, event.getIntegerValueField(.keyboardEventKeycode) == 53 {
+            let key = event.getIntegerValueField(.keyboardEventKeycode)
+            if swallowNextEscUp, key == 53 {
                 swallowNextEscUp = false
+                return nil
+            }
+            if let digitKey = swallowNextDigitUp, key == digitKey {
+                swallowNextDigitUp = nil
+                return nil
+            }
+            if swallowNextZUp, key == 6 {
+                swallowNextZUp = false
                 return nil
             }
             return Unmanaged.passUnretained(event)

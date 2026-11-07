@@ -11,8 +11,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     private var permissionsSeparator = NSMenuItem.separator()
     private var accessibilityItem = NSMenuItem()
     private var screenRecordingItem = NSMenuItem()
-    private var loginItem = NSMenuItem()
     private var hintItem = NSMenuItem()
+    private var undoItem = NSMenuItem()
 
     func applicationDidFinishLaunching(_ notification: Notification) {
         Dropper.pruneOldDrops()
@@ -80,13 +80,17 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         menu.addItem(screenRecordingItem)
 
         menu.addItem(.separator())
+        undoItem = NSMenuItem(title: "Undo Last Drop or Toss", action: #selector(undoLast), keyEquivalent: "")
+        undoItem.target = self
+        menu.addItem(undoItem)
+
+        let drops = NSMenuItem(title: "Show Drops Folder", action: #selector(showDropsFolder), keyEquivalent: "")
+        drops.target = self
+        menu.addItem(drops)
+
         let settingsItem = NSMenuItem(title: "Settings…", action: #selector(openSettings), keyEquivalent: ",")
         settingsItem.target = self
         menu.addItem(settingsItem)
-
-        loginItem = NSMenuItem(title: "Open at Login", action: #selector(toggleLogin), keyEquivalent: "")
-        loginItem.target = self
-        menu.addItem(loginItem)
 
         menu.addItem(.separator())
         let quit = NSMenuItem(title: "Quit SnapSack", action: #selector(NSApplication.terminate(_:)), keyEquivalent: "q")
@@ -102,8 +106,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         accessibilityItem.isHidden = !needsAccessibility
         screenRecordingItem.isHidden = !needsScreen
         permissionsSeparator.isHidden = !(needsAccessibility || needsScreen)
-        loginItem.state = LoginItem.isEnabled ? .on : .off
         hintItem.title = Settings.shared.hintLine
+        undoItem.isEnabled = carrier.canUndo
     }
 
     @objc private func carryScreenshot() {
@@ -123,23 +127,22 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         settings?.show()
     }
 
+    @objc private func undoLast() {
+        carrier.undoLast()
+    }
+
+    @objc private func showDropsFolder() {
+        let folder = Dropper.directory
+        try? FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
+        NSWorkspace.shared.open(folder)
+    }
+
     @objc private func allowAccessibility() {
         Permissions.requestAccessibility()
     }
 
     @objc private func allowScreenRecording() {
         Permissions.requestScreenRecording()
-    }
-
-    @objc private func toggleLogin() {
-        do {
-            try LoginItem.set(!LoginItem.isEnabled)
-        } catch {
-            let alert = NSAlert(error: error)
-            alert.messageText = "Couldn't change the login item"
-            NSApp.activate()
-            alert.runModal()
-        }
     }
 
     // MARK: - First launch

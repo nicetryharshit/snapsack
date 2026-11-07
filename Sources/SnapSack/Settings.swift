@@ -239,3 +239,16 @@ extension Settings {
         }
     }
 }
+
+// MARK: - Version
+
+/// The version from the app's Info.plist, shown at the bottom of Settings.
+enum AppVersion {
+    static var text: String {
+        let info = Bundle.main.infoDictionary
+        let short = info?["CFBundleShortVersionString"] as? String ?? "dev"
+        let build = info?["CFBundleVersion"] as? String
+        if let build, build != short { return "Version \(short) (\(build))" }
+        return "Version \(short)"
+    }
+}
