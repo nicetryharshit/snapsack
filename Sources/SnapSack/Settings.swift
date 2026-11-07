@@ -117,6 +117,28 @@ enum CardSize: String, CaseIterable {
     }
 }
 
+/// How far cards hang from the cursor.
+enum FollowDistance: String, CaseIterable {
+    case close, medium, far
+
+    var title: String {
+        switch self {
+        case .close: return "Close"
+        case .medium: return "Medium"
+        case .far: return "Far"
+        }
+    }
+
+    /// Scales the gap between the pointer and the cards.
+    var factor: CGFloat {
+        switch self {
+        case .close: return 1
+        case .medium: return 2.2
+        case .far: return 3.5
+        }
+    }
+}
+
 // MARK: - Store
 
 /// Everything the user can change. Saved in UserDefaults and read live by the code that uses it,
@@ -164,6 +186,10 @@ final class Settings {
         didSet { defaults.set(dropsKeepDays, forKey: "dropsKeepDays") }
     }
 
+    var followDistance: FollowDistance {
+        didSet { defaults.set(followDistance.rawValue, forKey: "followDistance") }
+    }
+
     private init() {
         escapeAction = Self.choice(UserDefaults.standard, "escapeAction", EscapeAction.putAwayNewest)
         shakeToToss = Self.flag(UserDefaults.standard, "shakeToToss", true)
@@ -177,6 +203,7 @@ final class Settings {
         fanHoverLift = Self.flag(UserDefaults.standard, "fanHoverLift", true)
         restoreClipboard = Self.flag(UserDefaults.standard, "restoreClipboard", true)
         dropsKeepDays = Self.number(UserDefaults.standard, "dropsKeepDays", 7)
+        followDistance = Self.choice(UserDefaults.standard, "followDistance", FollowDistance.close)
     }
 
     /// Puts every choice back to its first-launch value. The shortcut is handled separately, in Shortcut.
@@ -193,6 +220,7 @@ final class Settings {
         fanHoverLift = true
         restoreClipboard = true
         dropsKeepDays = 7
+        followDistance = .close
     }
 
     private static func choice<T: RawRepresentable>(_ defaults: UserDefaults, _ key: String, _ fallback: T) -> T

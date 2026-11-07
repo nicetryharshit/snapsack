@@ -250,6 +250,9 @@ final class SettingsWindow: NSWindowController, NSWindowDelegate {
                 ("Shake sensitivity", sensitivity),
                 ("Screenshots in hand", maxCards),
                 ("Card size", size),
+                ("Distance from cursor", popup(FollowDistance.allCases, title: { $0.title }, selected: settings.followDistance) {
+                    Settings.shared.followDistance = $0
+                }),
             ]),
         ])
     }

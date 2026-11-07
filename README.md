@@ -41,7 +41,7 @@ need to right-click it and choose **Open** the first time.
 Open **Settings…** from the menu bar (⌘,). It has three tabs, and every change applies straight away.
 
 - **General**: the screenshot shortcut (click **Record**, then press the combination; it needs ⌘, ⌃ or ⌥, and Esc cancels), whether your clipboard is put back after a paste, how long dropped files are kept (1, 7 or 30 days), and whether SnapSack opens at login.
-- **Controls**: what Esc does while you hold screenshots (put away the newest, clear the whole hand, close only the fan, or pass through to the app, which then gets Esc as usual), shake to toss and its sensitivity, how many screenshots you can hold (4 to 8), and card size.
+- **Controls**: what Esc does while you hold screenshots (put away the newest, clear the whole hand, close only the fan, or pass through to the app, which then gets Esc as usual), shake to toss and its sensitivity, how many screenshots you can hold (4 to 8), card size, and how far cards hang from the cursor (close, medium or far).
 - **Animation**: animate cards on or off, Reduce motion (follows macOS by default), speed (0.5× to 2×), tilt (off, subtle or full), and whether the card under the pointer lifts in the fan.
 
 **Reset All to Defaults** puts everything back, the shortcut included. Choices are saved in UserDefaults.

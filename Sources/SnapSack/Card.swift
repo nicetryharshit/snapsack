@@ -10,7 +10,10 @@ enum Tune {
     static let cornerRadius: CGFloat = 7
 
     // Hanging off the cursor
-    static let pivotInset = CGPoint(x: 10, y: 14)              // distance of the pin from the cursor tip
+    static var pivotInset: CGPoint {   // distance of the pin from the cursor tip, scaled by the follow distance setting
+        let f = Settings.shared.followDistance.factor
+        return CGPoint(x: 10 * f, y: 14 * f)
+    }
     static let edgeMargin: CGFloat = 10
     static let followRate: CGFloat = 34                        // easing toward the cursor (per second)
     static let trailFalloff: CGFloat = 0.75                    // each card back eases this much slower: a small delay
